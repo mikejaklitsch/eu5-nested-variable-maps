@@ -1,0 +1,169 @@
+﻿# ═══════════════════════════════════════════════════════════════════════════════
+# NESTED MAP STRESS TEST
+# ═══════════════════════════════════════════════════════════════════════════════
+
+nvm_run_stress_tests = {
+	nvm_init_pool = yes
+	set_local_variable = { name = pool_before value = global_var:nvm_pool_size }
+	error_log = "NVM STRESS pool before=[SCOPE.GetLocalVariable('pool_before').GetValue|0]"
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# S1: MASS ALLOCATION (5000 nodes)
+	# Pure allocation throughput. Every node gets a value written.
+	# ═══════════════════════════════════════════════════════════════════════
+
+	clear_global_variable_list = nvm_stress_nodes
+	set_local_variable = { name = nvm_alloc_count value = 0 }
+
+	while = {
+		count = 5000
+		nvm_new_map = yes
+		set_local_variable = { name = v value = local_var:nvm_alloc_count }
+		scope:nvm_map = { nvm_set_value = { key = goods:wheat value = local_var:v } }
+		add_to_global_variable_list = { name = nvm_stress_nodes target = scope:nvm_map }
+		# Save a specific node for spot check
+		if = { limit = { local_var:nvm_alloc_count = 2500 }
+			scope:nvm_map = { save_scope_as = nvm_spot_node }
+		}
+		change_local_variable = { name = nvm_alloc_count add = 1 }
+	}
+	set_local_variable = { name = r value = local_var:nvm_alloc_count }
+	error_log = "NVM S1 allocated=[SCOPE.GetLocalVariable('r').GetValue|0]"
+
+	# Spot check: read back the saved node's value directly
+	scope:nvm_spot_node = { nvm_get_value = { key = goods:wheat } }
+	set_local_variable = { name = r value = global_var:nvm_result }
+	error_log = "NVM S1 spot check expect=2500 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# S2: MASS DELETE (return all 5000)
+	# ═══════════════════════════════════════════════════════════════════════
+
+	every_in_global_list = {
+		variable = nvm_stress_nodes
+		nvm_delete_map = yes
+	}
+	clear_global_variable_list = nvm_stress_nodes
+	error_log = "NVM S2 mass delete complete"
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# S3: DEEP TREE (10 levels)
+	# ═══════════════════════════════════════════════════════════════════════
+
+	nvm_new_map = yes
+	scope:nvm_map = { save_scope_as = nvm_stress_deep }
+
+	scope:nvm_stress_deep = { nvm_get_or_set_map = { key = goods:wheat } }
+	scope:nvm_cursor = { nvm_get_or_set_map = { key = goods:iron } }
+	scope:nvm_cursor = { nvm_get_or_set_map = { key = goods:silk } }
+	scope:nvm_cursor = { nvm_get_or_set_map = { key = goods:cloth } }
+	scope:nvm_cursor = { nvm_get_or_set_map = { key = goods:paper } }
+	scope:nvm_cursor = { nvm_get_or_set_map = { key = goods:wine } }
+	scope:nvm_cursor = { nvm_get_or_set_map = { key = goods:fur } }
+	scope:nvm_cursor = { nvm_get_or_set_map = { key = goods:tea } }
+	scope:nvm_cursor = { nvm_get_or_set_map = { key = goods:salt } }
+	scope:nvm_cursor = { nvm_get_or_set_map = { key = goods:coffee } }
+
+	set_local_variable = { name = v value = 777 }
+	scope:nvm_cursor = { nvm_set_value = { key = goods:sugar value = local_var:v } }
+
+	scope:nvm_stress_deep = { nvm_get_map = { key = goods:wheat } }
+	scope:nvm_cursor = { nvm_get_map = { key = goods:iron } }
+	scope:nvm_cursor = { nvm_get_map = { key = goods:silk } }
+	scope:nvm_cursor = { nvm_get_map = { key = goods:cloth } }
+	scope:nvm_cursor = { nvm_get_map = { key = goods:paper } }
+	scope:nvm_cursor = { nvm_get_map = { key = goods:wine } }
+	scope:nvm_cursor = { nvm_get_map = { key = goods:fur } }
+	scope:nvm_cursor = { nvm_get_map = { key = goods:tea } }
+	scope:nvm_cursor = { nvm_get_map = { key = goods:salt } }
+	scope:nvm_cursor = { nvm_get_map = { key = goods:coffee } }
+	scope:nvm_cursor = { nvm_get_value = { key = goods:sugar } }
+	set_local_variable = { name = r value = global_var:nvm_result }
+	error_log = "NVM S3 depth10 expect=777 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+
+	scope:nvm_stress_deep = { nvm_delete_tree = yes }
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# S4: WIDE TREE (every_goods children, value each)
+	# ═══════════════════════════════════════════════════════════════════════
+
+	nvm_new_map = yes
+	scope:nvm_map = { save_scope_as = nvm_stress_wide }
+
+	set_local_variable = { name = nvm_child_count value = 0 }
+	every_goods = {
+		save_scope_as = nvm_stress_good
+		scope:nvm_stress_wide = { nvm_get_or_set_map = { key = scope:nvm_stress_good } }
+		set_local_variable = { name = v value = local_var:nvm_child_count }
+		scope:nvm_cursor = { nvm_set_value = { key = scope:nvm_stress_good value = local_var:v } }
+		change_local_variable = { name = nvm_child_count add = 1 }
+	}
+	set_local_variable = { name = r value = local_var:nvm_child_count }
+	error_log = "NVM S4 wide children=[SCOPE.GetLocalVariable('r').GetValue|0]"
+
+	scope:nvm_stress_wide = { nvm_delete_tree = yes }
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# S5: MULTI-PARENT (10 parents, 1 shared child, delete child)
+	# ═══════════════════════════════════════════════════════════════════════
+
+	nvm_new_map = yes
+	scope:nvm_map = { save_scope_as = nvm_stress_shared }
+	set_local_variable = { name = v value = 999 }
+	scope:nvm_stress_shared = { nvm_set_value = { key = goods:wheat value = local_var:v } }
+
+	clear_global_variable_list = nvm_stress_parents
+	while = {
+		count = 10
+		nvm_new_map = yes
+		scope:nvm_map = { save_scope_as = nvm_stress_p }
+		scope:nvm_stress_p = {
+			add_to_variable_map = { name = nvm_children key = goods:wheat value = scope:nvm_stress_shared }
+		}
+		scope:nvm_stress_shared = {
+			add_to_variable_list = { name = nvm_parents target = scope:nvm_stress_p }
+		}
+		add_to_global_variable_list = { name = nvm_stress_parents target = scope:nvm_stress_p }
+	}
+
+	scope:nvm_stress_shared = { nvm_delete_map = yes }
+
+	set_local_variable = { name = nvm_stale value = 0 }
+	every_in_global_list = {
+		variable = nvm_stress_parents
+		if = { limit = { is_key_in_variable_map = { name = nvm_children target = goods:wheat } }
+			change_local_variable = { name = nvm_stale add = 1 }
+		}
+	}
+	set_local_variable = { name = r value = local_var:nvm_stale }
+	error_log = "NVM S5 stale parents expect=0 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+
+	every_in_global_list = {
+		variable = nvm_stress_parents
+		nvm_delete_map = yes
+	}
+	clear_global_variable_list = nvm_stress_parents
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# S6: POOL CHURN (100 allocate/delete cycles)
+	# ═══════════════════════════════════════════════════════════════════════
+
+	while = {
+		count = 100
+		nvm_new_map = yes
+		scope:nvm_map = { nvm_delete_map = yes }
+	}
+	error_log = "NVM S6 churn 100 cycles complete"
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# POOL INTEGRITY
+	# ═══════════════════════════════════════════════════════════════════════
+
+	set_local_variable = { name = pool_after value = 0 }
+	every_in_global_list = {
+		variable = nvm_free_pool
+		change_local_variable = { name = pool_after add = 1 }
+	}
+	error_log = "NVM STRESS pool after=[SCOPE.GetLocalVariable('pool_after').GetValue|0] (started at [SCOPE.GetLocalVariable('pool_before').GetValue|0])"
+	error_log = "NVM STRESS complete"
+}

@@ -1,0 +1,573 @@
+﻿# ═══════════════════════════════════════════════════════════════════════════════
+# NESTED MAP API
+# ═══════════════════════════════════════════════════════════════════════════════
+# Provides dictionary-like data structures built on top of EU5 variable maps.
+# Each dictionary can hold three types of data at any key:
+#   - Sub-dictionaries (nested maps within maps)
+#   - Numeric values
+#   - Scope references (locations, countries, any game scope)
+#
+# Internal map names on each dictionary node:
+#   nvm_children  - sub-dictionary references
+#   nvm_values    - numeric data
+#   nvm_scopes      - arbitrary scope references
+#   nvm_parents   - variable list tracking which dictionaries link to this one
+#
+# All operations are called inside a scope block on the target dictionary:
+#   scope:my_dict = { nvm_set_value = { key = goods:wheat value = local_var:v } }
+#
+# Keys can be any valid game scope (goods, countries, subcontinents, etc.).
+# Invalid scope references silently return 0 on read. Writes log an error.
+#
+# SCOPE SAVE REQUIREMENT:
+#   All dictionary references must use save_scope_as (persistent).
+#   save_temporary_scope_as does NOT support variable map writes on re-entry.
+#
+# PARAMETER LIMITATION:
+#   Scripted effect $parameters$ do not resolve inside quoted expressions
+#   like "variable_map(name|$key$)". All operations save the key to
+#   scope:nvm_op_key internally before using it in quoted reads.
+#
+# RESULT SCOPES AND VARIABLES:
+#   scope:nvm_map      - set by nvm_new_map (newly allocated dictionary)
+#   scope:nvm_cursor   - set by nvm_get_or_set_map, nvm_get_map (navigated child)
+#   scope:nvm_scope      - set by nvm_get_scope (retrieved scope reference)
+#   global_var:nvm_result  - set by nvm_get_value (numeric read result)
+#   global_var:nvm_found   - set by existence checks and nvm_get_map (yes or no)
+#   global_var:nvm_has_map  - set by nvm_check_key (yes or no)
+#   global_var:nvm_has_value - set by nvm_check_key (yes or no)
+#   global_var:nvm_has_scope  - set by nvm_check_key (yes or no)
+#
+# ITERATION:
+#   Use every_key_in_variable_map directly on the dictionary scope:
+#     scope:my_dict = {
+#         every_key_in_variable_map = {
+#             variable = nvm_values
+#             save_scope_as = my_key
+#             scope:my_dict = {
+#                 set_local_variable = { name = v value = "variable_map(nvm_values|scope:my_key)" }
+#             }
+#         }
+#     }
+#   Note: inside every_key_in_variable_map, the current scope is the KEY,
+#   not the dictionary. Scope back to the dictionary to read values.
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SUB-DICTIONARIES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_get_or_set_map
+# ───────────────────────────────────────────────────────────────────────────────
+# Opens or creates a child dictionary at the given key. If the key already
+# has a child, navigates to it. If not, allocates a new dictionary from the
+# pool and links it. Registers the parent on the child's parent list for
+# cleanup tracking.
+#
+# Use this for write paths where you want the child to exist after the call.
+# Use nvm_get_map for read-only paths where creating empty dictionaries on
+# a bad key would be a bug.
+#
+# Scope: parent dictionary
+# Parameter: $key$ = any scope to use as the key
+# Result: scope:nvm_cursor = the child dictionary
+#         global_var:nvm_found = 1 if child already existed, 0 if created new
+
+nvm_get_or_set_map = {
+	$key$ = { save_scope_as = nvm_op_key }
+	save_scope_as = nvm_op_parent
+	if = {
+		limit = { is_key_in_variable_map = { name = nvm_children target = scope:nvm_op_key } }
+		set_global_variable = { name = nvm_nav value = "variable_map(nvm_children|scope:nvm_op_key)" }
+		global_var:nvm_nav = {
+			save_scope_as = nvm_cursor
+			set_variable = { name = nvm_accessed_from value = scope:nvm_op_parent }
+		}
+		set_global_variable = { name = nvm_found value = yes }
+	} else = {
+		nvm_new_map = yes
+		add_to_variable_map = { name = nvm_children key = scope:nvm_op_key value = scope:nvm_map }
+		scope:nvm_map = {
+			save_scope_as = nvm_cursor
+			add_to_variable_list = { name = nvm_parents target = scope:nvm_op_parent }
+			set_variable = { name = nvm_accessed_from value = scope:nvm_op_parent }
+		}
+		set_global_variable = { name = nvm_found value = no }
+	}
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_get_map
+# ───────────────────────────────────────────────────────────────────────────────
+# Navigates to an existing child dictionary. Does not create.
+#
+# Scope: parent dictionary
+# Parameter: $key$
+# Result: scope:nvm_cursor = the child. global_var:nvm_found = yes or no.
+
+nvm_get_map = {
+	$key$ = { save_scope_as = nvm_op_key }
+	save_scope_as = nvm_op_parent
+	if = {
+		limit = { is_key_in_variable_map = { name = nvm_children target = scope:nvm_op_key } }
+		set_global_variable = { name = nvm_nav value = "variable_map(nvm_children|scope:nvm_op_key)" }
+		global_var:nvm_nav = {
+			save_scope_as = nvm_cursor
+			set_variable = { name = nvm_accessed_from value = scope:nvm_op_parent }
+		}
+		set_global_variable = { name = nvm_found value = yes }
+	} else = {
+		set_global_variable = { name = nvm_found value = no }
+	}
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_has_map
+# ───────────────────────────────────────────────────────────────────────────────
+# Checks if a key points to a sub-dictionary.
+#
+# Scope: dictionary
+# Parameter: $key$
+# Result: global_var:nvm_found = yes or no
+
+nvm_has_map = {
+	$key$ = { save_scope_as = nvm_op_key }
+	if = {
+		limit = { is_key_in_variable_map = { name = nvm_children target = scope:nvm_op_key } }
+		set_global_variable = { name = nvm_found value = yes }
+	} else = {
+		set_global_variable = { name = nvm_found value = no }
+	}
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_has_scope
+# ───────────────────────────────────────────────────────────────────────────────
+# Checks if a key points to a scope reference.
+#
+# Scope: dictionary
+# Parameter: $key$
+# Result: global_var:nvm_found = yes or no
+
+nvm_has_scope = {
+	$key$ = { save_scope_as = nvm_op_key }
+	if = {
+		limit = { is_key_in_variable_map = { name = nvm_scopes target = scope:nvm_op_key } }
+		set_global_variable = { name = nvm_found value = yes }
+	} else = {
+		set_global_variable = { name = nvm_found value = no }
+	}
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_check_key
+# ───────────────────────────────────────────────────────────────────────────────
+# Checks all three maps at once to determine what types of data exist at a key.
+# A single key can have entries in multiple maps simultaneously.
+#
+# Scope: dictionary
+# Parameter: $key$
+# Result: global_var:nvm_has_map, global_var:nvm_has_value, global_var:nvm_has_scope
+
+nvm_check_key = {
+	$key$ = { save_scope_as = nvm_op_key }
+	if = { limit = { is_key_in_variable_map = { name = nvm_children target = scope:nvm_op_key } }
+		set_global_variable = { name = nvm_has_map value = yes }
+	} else = {
+		set_global_variable = { name = nvm_has_map value = no }
+	}
+	if = { limit = { is_key_in_variable_map = { name = nvm_values target = scope:nvm_op_key } }
+		set_global_variable = { name = nvm_has_value value = yes }
+	} else = {
+		set_global_variable = { name = nvm_has_value value = no }
+	}
+	if = { limit = { is_key_in_variable_map = { name = nvm_scopes target = scope:nvm_op_key } }
+		set_global_variable = { name = nvm_has_scope value = yes }
+	} else = {
+		set_global_variable = { name = nvm_has_scope value = no }
+	}
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_remove_map
+# ───────────────────────────────────────────────────────────────────────────────
+# Removes a child reference from this dictionary. Also unregisters this
+# dictionary from the child's parent list so cleanup tracking stays accurate.
+# Does NOT delete the child dictionary itself.
+#
+# Scope: parent dictionary
+# Parameter: $key$
+
+nvm_remove_map = {
+	$key$ = { save_scope_as = nvm_op_key }
+	if = { limit = { is_key_in_variable_map = { name = nvm_children target = scope:nvm_op_key } }
+		# Remember who we are so we can unregister from the child
+		save_scope_as = nvm_op_parent
+		# Navigate to the child and remove ourselves from its parent list
+		set_global_variable = { name = nvm_nav value = "variable_map(nvm_children|scope:nvm_op_key)" }
+		global_var:nvm_nav = {
+			remove_from_variable_list = { name = nvm_parents target = scope:nvm_op_parent }
+		}
+		# Remove the child reference from our children map
+		remove_from_variable_map = { name = nvm_children key = scope:nvm_op_key }
+	}
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_clear_maps
+# ───────────────────────────────────────────────────────────────────────────────
+# Removes all child references. Does NOT unregister from children's parent
+# lists or delete the children. Use nvm_delete_tree for full recursive cleanup.
+#
+# Scope: dictionary
+
+nvm_clear_maps = {
+	if = { limit = { has_variable_map = nvm_children } clear_variable_map = nvm_children }
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# NUMERIC VALUES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_set_value
+# ───────────────────────────────────────────────────────────────────────────────
+# Stores a numeric value at a key. Creates or overwrites.
+# Handles the engine limitation where add_to_variable_map silently fails
+# on existing keys by removing first.
+# Logs an error if the write fails (usually means the key scope is invalid).
+#
+# Scope: dictionary
+# Parameters: $key$ = scope, $value$ = number or variable reference
+
+nvm_set_value = {
+	$key$ = { save_scope_as = nvm_op_key }
+	# Remove existing entry if present (add_to silently fails on duplicates)
+	if = { limit = { is_key_in_variable_map = { name = nvm_values target = scope:nvm_op_key } }
+		remove_from_variable_map = { name = nvm_values key = scope:nvm_op_key }
+	}
+	add_to_variable_map = { name = nvm_values key = scope:nvm_op_key value = $value$ }
+	# Verify the write succeeded
+	if = { limit = { NOT = { is_key_in_variable_map = { name = nvm_values target = scope:nvm_op_key } } }
+		error_log = "NVM set_value FAILED: key invalid or write rejected"
+	}
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_get_value
+# ───────────────────────────────────────────────────────────────────────────────
+# Reads a numeric value. Returns 0 for missing keys.
+#
+# Scope: dictionary
+# Parameter: $key$
+# Result: global_var:nvm_result
+
+nvm_get_value = {
+	$key$ = { save_scope_as = nvm_op_key }
+	set_global_variable = { name = nvm_result value = "variable_map(nvm_values|scope:nvm_op_key)" }
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_has_value
+# ───────────────────────────────────────────────────────────────────────────────
+# Checks if a numeric value exists at a key.
+#
+# Scope: dictionary
+# Parameter: $key$
+# Result: global_var:nvm_found = yes or no
+
+nvm_has_value = {
+	$key$ = { save_scope_as = nvm_op_key }
+	if = {
+		limit = { is_key_in_variable_map = { name = nvm_values target = scope:nvm_op_key } }
+		set_global_variable = { name = nvm_found value = yes }
+	} else = {
+		set_global_variable = { name = nvm_found value = no }
+	}
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_remove_value
+# ───────────────────────────────────────────────────────────────────────────────
+# Removes a numeric value at a key. No-op if key doesn't exist.
+#
+# Scope: dictionary
+# Parameter: $key$
+
+nvm_remove_value = {
+	$key$ = { save_scope_as = nvm_op_key }
+	if = { limit = { is_key_in_variable_map = { name = nvm_values target = scope:nvm_op_key } }
+		remove_from_variable_map = { name = nvm_values key = scope:nvm_op_key }
+	}
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_clear_values
+# ───────────────────────────────────────────────────────────────────────────────
+# Removes all numeric values. Children and refs are unaffected.
+#
+# Scope: dictionary
+
+nvm_clear_values = {
+	if = { limit = { has_variable_map = nvm_values } clear_variable_map = nvm_values }
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_change_value
+# ───────────────────────────────────────────────────────────────────────────────
+# Modifies a value in place using any arithmetic operation.
+# Missing keys start from 0.
+#
+# Scope: dictionary
+# Parameters: $key$, $operation$ = add/subtract/multiply/divide, $value$ = amount
+#
+# Usage:
+#   scope:my_dict.nvm_change_value = { key = goods:wheat operation = add value = local_var:v }
+#   scope:my_dict.nvm_change_value = { key = goods:wheat operation = multiply value = local_var:v }
+
+nvm_change_value = {
+	$key$ = { save_scope_as = nvm_op_key }
+	set_local_variable = { name = nvm_current value = 0 }
+	if = { limit = { is_key_in_variable_map = { name = nvm_values target = scope:nvm_op_key } }
+		set_local_variable = { name = nvm_current value = "variable_map(nvm_values|scope:nvm_op_key)" }
+		remove_from_variable_map = { name = nvm_values key = scope:nvm_op_key }
+	}
+	change_local_variable = { name = nvm_current $operation$ = $value$ }
+	add_to_variable_map = { name = nvm_values key = scope:nvm_op_key value = local_var:nvm_current }
+}
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_swap_values
+# ───────────────────────────────────────────────────────────────────────────────
+# Exchanges the values at two keys. Missing keys are treated as 0.
+#
+# Scope: dictionary
+# Parameters: $key_a$, $key_b$
+
+nvm_swap_values = {
+	$key_a$ = { save_scope_as = nvm_op_key_a }
+	$key_b$ = { save_scope_as = nvm_op_key_b }
+	# Read both values
+	set_local_variable = { name = nvm_val_a value = "variable_map(nvm_values|scope:nvm_op_key_a)" }
+	set_local_variable = { name = nvm_val_b value = "variable_map(nvm_values|scope:nvm_op_key_b)" }
+	# Remove both
+	if = { limit = { is_key_in_variable_map = { name = nvm_values target = scope:nvm_op_key_a } }
+		remove_from_variable_map = { name = nvm_values key = scope:nvm_op_key_a }
+	}
+	if = { limit = { is_key_in_variable_map = { name = nvm_values target = scope:nvm_op_key_b } }
+		remove_from_variable_map = { name = nvm_values key = scope:nvm_op_key_b }
+	}
+	# Write back swapped
+	add_to_variable_map = { name = nvm_values key = scope:nvm_op_key_a value = local_var:nvm_val_b }
+	add_to_variable_map = { name = nvm_values key = scope:nvm_op_key_b value = local_var:nvm_val_a }
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SCOPE REFERENCES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_set_scope
+# ───────────────────────────────────────────────────────────────────────────────
+# Stores an arbitrary scope reference (location, country, market, etc.).
+# Separate from values (numeric) and children (sub-dictionaries).
+#
+# Scope: dictionary
+# Parameters: $key$ = scope, $value$ = scope reference to store
+
+nvm_set_scope = {
+	$key$ = { save_scope_as = nvm_op_key }
+	if = { limit = { is_key_in_variable_map = { name = nvm_scopes target = scope:nvm_op_key } }
+		remove_from_variable_map = { name = nvm_scopes key = scope:nvm_op_key }
+	}
+	add_to_variable_map = { name = nvm_scopes key = scope:nvm_op_key value = $value$ }
+	if = { limit = { NOT = { is_key_in_variable_map = { name = nvm_scopes target = scope:nvm_op_key } } }
+		error_log = "NVM set_ref FAILED: key invalid or write rejected"
+	}
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_get_scope
+# ───────────────────────────────────────────────────────────────────────────────
+# Retrieves a stored scope reference.
+#
+# Scope: dictionary
+# Parameter: $key$
+# Result: scope:nvm_scope = the stored scope. global_var:nvm_found = yes or no.
+
+nvm_get_scope = {
+	$key$ = { save_scope_as = nvm_op_key }
+	if = {
+		limit = { is_key_in_variable_map = { name = nvm_scopes target = scope:nvm_op_key } }
+		set_global_variable = { name = nvm_nav value = "variable_map(nvm_scopes|scope:nvm_op_key)" }
+		global_var:nvm_nav = { save_scope_as = nvm_scope }
+		set_global_variable = { name = nvm_found value = yes }
+	} else = {
+		set_global_variable = { name = nvm_found value = no }
+	}
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_has_scope
+# ───────────────────────────────────────────────────────────────────────────────
+# Checks if a scope reference exists at a key.
+#
+# Scope: dictionary
+# Parameter: $key$
+# Result: global_var:nvm_found = yes or no
+
+nvm_has_scope = {
+	$key$ = { save_scope_as = nvm_op_key }
+	if = {
+		limit = { is_key_in_variable_map = { name = nvm_scopes target = scope:nvm_op_key } }
+		set_global_variable = { name = nvm_found value = yes }
+	} else = {
+		set_global_variable = { name = nvm_found value = no }
+	}
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_remove_scope
+# ───────────────────────────────────────────────────────────────────────────────
+# Removes a scope reference. No-op if key doesn't exist.
+#
+# Scope: dictionary
+# Parameter: $key$
+
+nvm_remove_scope = {
+	$key$ = { save_scope_as = nvm_op_key }
+	if = { limit = { is_key_in_variable_map = { name = nvm_scopes target = scope:nvm_op_key } }
+		remove_from_variable_map = { name = nvm_scopes key = scope:nvm_op_key }
+	}
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_clear_scopes
+# ───────────────────────────────────────────────────────────────────────────────
+# Removes all scope references. Children and values are unaffected.
+#
+# Scope: dictionary
+
+nvm_clear_scopes = {
+	if = { limit = { has_variable_map = nvm_scopes } clear_variable_map = nvm_scopes }
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LIFECYCLE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_clean_parent_refs (internal helper)
+# ───────────────────────────────────────────────────────────────────────────────
+# Iterates all parents of the current node, scans each parent's children map,
+# and removes any entries that point to this node. Called by the delete
+# operations to prevent dangling references.
+#
+# Requires scope:nvm_deleting to be set to the node being deleted.
+#
+# Cannot remove map entries during iteration, so collects matching keys into
+# a global list first, then removes them in a second pass.
+
+nvm_clean_parent_refs = {
+	if = { limit = { has_variable_list = nvm_parents }
+		every_in_list = {
+			variable = nvm_parents
+			save_scope_as = nvm_del_parent
+
+			# Collect keys in this parent that point to the node being deleted
+			clear_global_variable_list = nvm_keys_to_remove
+			every_key_in_variable_map = {
+				variable = nvm_children
+				save_scope_as = nvm_del_iter_key
+				# Read the child reference from the PARENT (not from the key scope)
+				scope:nvm_del_parent = {
+					set_global_variable = { name = nvm_nav value = "variable_map(nvm_children|scope:nvm_del_iter_key)" }
+				}
+				# Check if this child is the node being deleted
+				global_var:nvm_nav = {
+					if = {
+						limit = { this = scope:nvm_deleting }
+						add_to_global_variable_list = { name = nvm_keys_to_remove target = scope:nvm_del_iter_key }
+					}
+				}
+			}
+
+			# Remove all collected keys from this parent
+			every_in_global_list = {
+				variable = nvm_keys_to_remove
+				save_scope_as = nvm_del_remove_key
+				scope:nvm_del_parent = {
+					remove_from_variable_map = { name = nvm_children key = scope:nvm_del_remove_key }
+				}
+			}
+		}
+	}
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_wipe_and_release (internal helper)
+# ───────────────────────────────────────────────────────────────────────────────
+# Clears all data on a node and returns it to the free pool.
+# Called after parent references have been cleaned up.
+
+nvm_wipe_and_release = {
+	if = { limit = { has_variable_map = nvm_children } clear_variable_map = nvm_children }
+	if = { limit = { has_variable_map = nvm_values } clear_variable_map = nvm_values }
+	if = { limit = { has_variable_map = nvm_scopes } clear_variable_map = nvm_scopes }
+	if = { limit = { has_variable_list = nvm_parents } clear_variable_list = nvm_parents }
+	if = { limit = { has_variable = nvm_accessed_from } remove_variable = nvm_accessed_from }
+	add_to_global_variable_list = { name = nvm_free_pool target = this }
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_delete_map
+# ───────────────────────────────────────────────────────────────────────────────
+# Deletes this dictionary. Cleans up all parent references pointing to it,
+# then wipes data and returns the node to the pool.
+#
+# Children are orphaned, not deleted. Use nvm_delete_tree for recursive cleanup.
+#
+# Scope: the dictionary to delete
+
+nvm_delete_map = {
+	save_scope_as = nvm_deleting
+	nvm_clean_parent_refs = yes
+	nvm_wipe_and_release = yes
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_delete_tree
+# ───────────────────────────────────────────────────────────────────────────────
+# Recursively deletes this dictionary and its entire subtree. Cleans parent
+# references at every level. Children are processed before the parent is
+# wiped, ensuring no references are left dangling.
+#
+# Uses call_recursive_scripted_effect for real recursion.
+#
+# Scope: the root dictionary to delete
+
+nvm_delete_tree = {
+	save_scope_as = nvm_deleting
+	nvm_clean_parent_refs = yes
+
+	# Recurse into all children before wiping this node
+	if = { limit = { has_variable_map = nvm_children }
+		every_key_in_variable_map = {
+			variable = nvm_children
+			save_scope_as = nvm_del_child_key
+			# Read child reference from THIS node (not from the key scope)
+			scope:nvm_deleting = {
+				set_global_variable = { name = nvm_nav value = "variable_map(nvm_children|scope:nvm_del_child_key)" }
+			}
+			global_var:nvm_nav = {
+				call_recursive_scripted_effect = {
+					effect = "nvm_delete_tree = yes"
+				}
+			}
+		}
+	}
+
+	# All children processed; wipe and release this node
+	scope:nvm_deleting = { nvm_wipe_and_release = yes }
+}

@@ -1,0 +1,493 @@
+﻿# ═══════════════════════════════════════════════════════════════════════════════
+# NESTED MAP TEST SUITE
+# ═══════════════════════════════════════════════════════════════════════════════
+# Permanent test suite. Remove on_action dispatch for publication; keep this file.
+# Each test logs "NVM T<N> <description> expect=<X> got=<Y>".
+# Filter with: eu5-logs error -f NVM
+
+nvm_run_tests_impl = {
+	nvm_init_pool = yes
+	nvm_init_test_pools = yes
+	set_local_variable = { name = nvm_count value = global_var:nvm_pool_size }
+	error_log = "NVM pool=[SCOPE.GetLocalVariable('nvm_count').GetValue|0]"
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# SETUP
+	# ═══════════════════════════════════════════════════════════════════════
+
+	nvm_new_map = yes
+	scope:nvm_map = { save_scope_as = nvm_test_root }
+
+	random_country = {
+		limit = { is_real_country = yes }
+		save_scope_as = nvm_test_country
+		capital = {
+			save_scope_as = nvm_test_capital
+			sub_continent = { save_scope_as = nvm_test_sc }
+		}
+	}
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# VALUE OPERATIONS
+	# ═══════════════════════════════════════════════════════════════════════
+
+	# T0: bare literal value (no local_var)
+	scope:nvm_test_root = { nvm_set_value = { key = goods:fur value = 13 } }
+	scope:nvm_test_root = { nvm_get_value = { key = goods:fur } }
+	set_local_variable = { name = r value = global_var:nvm_result }
+	error_log = "NVM T0 bare literal expect=13 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+	scope:nvm_test_root = { nvm_remove_value = { key = goods:fur } }
+
+	# T1: set and get a value
+	set_local_variable = { name = v value = 42 }
+	scope:nvm_test_root = { nvm_set_value = { key = goods:wheat value = local_var:v } }
+	scope:nvm_test_root = { nvm_get_value = { key = goods:wheat } }
+	set_local_variable = { name = r value = global_var:nvm_result }
+	error_log = "NVM T1 set/get expect=42 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+
+	# T2: multiple values, first key survives
+	set_local_variable = { name = v value = 77 }
+	scope:nvm_test_root = { nvm_set_value = { key = goods:iron value = local_var:v } }
+	scope:nvm_test_root = { nvm_get_value = { key = goods:iron } }
+	set_local_variable = { name = r value = global_var:nvm_result }
+	error_log = "NVM T2a second key expect=77 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+	scope:nvm_test_root = { nvm_get_value = { key = goods:wheat } }
+	set_local_variable = { name = r value = global_var:nvm_result }
+	error_log = "NVM T2b first key intact expect=42 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+
+	# T3: overwrite existing value
+	set_local_variable = { name = v value = 99 }
+	scope:nvm_test_root = { nvm_set_value = { key = goods:wheat value = local_var:v } }
+	scope:nvm_test_root = { nvm_get_value = { key = goods:wheat } }
+	set_local_variable = { name = r value = global_var:nvm_result }
+	error_log = "NVM T3 overwrite expect=99 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+
+	# T4: add_to_value accumulates
+	set_local_variable = { name = v value = 1 }
+	scope:nvm_test_root = { nvm_change_value = { key = goods:wheat operation = add value = local_var:v } }
+	scope:nvm_test_root = { nvm_get_value = { key = goods:wheat } }
+	set_local_variable = { name = r value = global_var:nvm_result }
+	error_log = "NVM T4 add_to expect=100 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+
+	# T5: add_to_value on missing key creates from 0
+	set_local_variable = { name = v value = 5 }
+	scope:nvm_test_root = { nvm_change_value = { key = goods:coffee operation = add value = local_var:v } }
+	scope:nvm_test_root = { nvm_get_value = { key = goods:coffee } }
+	set_local_variable = { name = r value = global_var:nvm_result }
+	error_log = "NVM T5 add_to missing key expect=5 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+
+	# T6: multiply_value
+	set_local_variable = { name = v value = 2 }
+	scope:nvm_test_root = { nvm_change_value = { key = goods:wheat operation = multiply value = local_var:v } }
+	scope:nvm_test_root = { nvm_get_value = { key = goods:wheat } }
+	set_local_variable = { name = r value = global_var:nvm_result }
+	error_log = "NVM T6 multiply expect=200 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+
+	# T7: swap_values
+	scope:nvm_test_root = { nvm_swap_values = { key_a = goods:wheat key_b = goods:iron } }
+	scope:nvm_test_root = { nvm_get_value = { key = goods:wheat } }
+	set_local_variable = { name = r value = global_var:nvm_result }
+	error_log = "NVM T7a swap wheat expect=77 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+	scope:nvm_test_root = { nvm_get_value = { key = goods:iron } }
+	set_local_variable = { name = r value = global_var:nvm_result }
+	error_log = "NVM T7b swap iron expect=200 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+
+	# T8: has_value true and false
+	scope:nvm_test_root = { nvm_has_value = { key = goods:wheat } }
+	if = { limit = { global_var:nvm_found = yes } error_log = "NVM T8a has wheat expect=yes got=yes" }
+	else = { error_log = "NVM T8a has wheat expect=yes got=no" }
+	scope:nvm_test_root = { nvm_has_value = { key = goods:fur } }
+	if = { limit = { global_var:nvm_found = no } error_log = "NVM T8b has fur expect=no got=no" }
+	else = { error_log = "NVM T8b has fur expect=no got=yes" }
+
+	# T9: remove_value
+	scope:nvm_test_root = { nvm_remove_value = { key = goods:iron } }
+	scope:nvm_test_root = { nvm_has_value = { key = goods:iron } }
+	if = { limit = { global_var:nvm_found = no } error_log = "NVM T9 removed iron expect=no got=no" }
+	else = { error_log = "NVM T9 removed iron expect=no got=yes" }
+
+	# T10: clear_values wipes all, children survive
+	scope:nvm_test_root = { nvm_clear_values = yes }
+	scope:nvm_test_root = { nvm_has_value = { key = goods:wheat } }
+	if = { limit = { global_var:nvm_found = no } error_log = "NVM T10 clear_values expect=no got=no" }
+	else = { error_log = "NVM T10 clear_values expect=no got=yes" }
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# SUB-DICTIONARY NAVIGATION
+	# ═══════════════════════════════════════════════════════════════════════
+
+	# T11: add_map creates child, write/read on child, navigate back
+	scope:nvm_test_root = { nvm_get_or_set_map = { key = scope:nvm_test_country } }
+	set_local_variable = { name = v value = 55 }
+	scope:nvm_cursor = { nvm_set_value = { key = goods:silk value = local_var:v } }
+	scope:nvm_test_root = { nvm_get_map = { key = scope:nvm_test_country } }
+	scope:nvm_cursor = { nvm_get_value = { key = goods:silk } }
+	set_local_variable = { name = r value = global_var:nvm_result }
+	error_log = "NVM T11 depth2 expect=55 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+
+	# T12: add_map to existing child navigates without duplicating parent
+	scope:nvm_test_root = { nvm_get_or_set_map = { key = scope:nvm_test_country } }
+	scope:nvm_cursor = { nvm_get_value = { key = goods:silk } }
+	set_local_variable = { name = r value = global_var:nvm_result }
+	error_log = "NVM T12 re-enter child expect=55 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+
+	# T13: depth 3
+	scope:nvm_test_root = { nvm_get_or_set_map = { key = scope:nvm_test_country } }
+	scope:nvm_cursor = { nvm_get_or_set_map = { key = scope:nvm_test_sc } }
+	set_local_variable = { name = v value = 7 }
+	scope:nvm_cursor = { nvm_set_value = { key = goods:paper value = local_var:v } }
+	scope:nvm_test_root = { nvm_get_map = { key = scope:nvm_test_country } }
+	scope:nvm_cursor = { nvm_get_map = { key = scope:nvm_test_sc } }
+	scope:nvm_cursor = { nvm_get_value = { key = goods:paper } }
+	set_local_variable = { name = r value = global_var:nvm_result }
+	error_log = "NVM T13 depth3 expect=7 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+
+	# T14: multiple children, earlier child survives
+	scope:nvm_test_root = { nvm_get_or_set_map = { key = goods:wine } }
+	set_local_variable = { name = v value = 33 }
+	scope:nvm_cursor = { nvm_set_value = { key = goods:cloth value = local_var:v } }
+	scope:nvm_test_root = { nvm_get_map = { key = scope:nvm_test_country } }
+	scope:nvm_cursor = { nvm_get_value = { key = goods:silk } }
+	set_local_variable = { name = r value = global_var:nvm_result }
+	error_log = "NVM T14 first child intact expect=55 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+
+	# T15: get_map returns found=no on missing key
+	scope:nvm_test_root = { nvm_get_map = { key = goods:fur } }
+	if = { limit = { global_var:nvm_found = no } error_log = "NVM T15 missing child expect=no got=no" }
+	else = { error_log = "NVM T15 missing child expect=no got=yes" }
+
+	# T16: has_map true and false
+	scope:nvm_test_root = { nvm_has_map = { key = scope:nvm_test_country } }
+	if = { limit = { global_var:nvm_found = yes } error_log = "NVM T16a has map expect=yes got=yes" }
+	else = { error_log = "NVM T16a has map expect=yes got=no" }
+	scope:nvm_test_root = { nvm_has_map = { key = goods:fur } }
+	if = { limit = { global_var:nvm_found = no } error_log = "NVM T16b no map expect=no got=no" }
+	else = { error_log = "NVM T16b no map expect=no got=yes" }
+
+	# T17: remove_map unlinks child and unregisters from parent list
+	scope:nvm_test_root = { nvm_remove_map = { key = goods:wine } }
+	scope:nvm_test_root = { nvm_has_map = { key = goods:wine } }
+	if = { limit = { global_var:nvm_found = no } error_log = "NVM T17 remove_map expect=no got=no" }
+	else = { error_log = "NVM T17 remove_map expect=no got=yes" }
+
+	# T17b: clear_maps removes all children references
+	scope:nvm_test_root = { nvm_get_or_set_map = { key = goods:wine } }
+	scope:nvm_test_root = { nvm_get_or_set_map = { key = goods:tea } }
+	scope:nvm_test_root = { nvm_clear_maps = yes }
+	scope:nvm_test_root = { nvm_has_map = { key = goods:wine } }
+	if = { limit = { global_var:nvm_found = no } error_log = "NVM T17b clear_maps wine expect=no got=no" }
+	else = { error_log = "NVM T17b clear_maps wine expect=no got=yes" }
+	scope:nvm_test_root = { nvm_has_map = { key = goods:tea } }
+	if = { limit = { global_var:nvm_found = no } error_log = "NVM T17c clear_maps tea expect=no got=no" }
+	else = { error_log = "NVM T17c clear_maps tea expect=no got=yes" }
+	# Rebuild the country child since clear_maps wiped it
+	scope:nvm_test_root = { nvm_get_or_set_map = { key = scope:nvm_test_country } }
+	set_local_variable = { name = v value = 55 }
+	scope:nvm_cursor = { nvm_set_value = { key = goods:silk value = local_var:v } }
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# SCOPE REFERENCES
+	# ═══════════════════════════════════════════════════════════════════════
+
+	# T18: store and retrieve a location reference
+	scope:nvm_test_root = { nvm_set_scope = { key = goods:wine value = scope:nvm_test_capital } }
+	scope:nvm_test_root = { nvm_get_scope = { key = goods:wine } }
+	if = { limit = { global_var:nvm_found = yes } error_log = "NVM T18a scope found expect=yes got=yes" }
+	else = { error_log = "NVM T18a scope found expect=yes got=no" }
+	scope:nvm_scope = { set_local_variable = { name = r value = development } }
+	scope:nvm_test_capital = { set_local_variable = { name = r2 value = development } }
+	error_log = "NVM T18b scope dev=[SCOPE.GetLocalVariable('r').GetValue|0] capital dev=[SCOPE.GetLocalVariable('r2').GetValue|0]"
+
+	# T19: has_scope and remove_scope
+	scope:nvm_test_root = { nvm_has_scope = { key = goods:wine } }
+	if = { limit = { global_var:nvm_found = yes } error_log = "NVM T19a has scope expect=yes got=yes" }
+	else = { error_log = "NVM T19a has scope expect=yes got=no" }
+	scope:nvm_test_root = { nvm_remove_scope = { key = goods:wine } }
+	scope:nvm_test_root = { nvm_has_scope = { key = goods:wine } }
+	if = { limit = { global_var:nvm_found = no } error_log = "NVM T19b removed scope expect=no got=no" }
+	else = { error_log = "NVM T19b removed scope expect=no got=yes" }
+
+	# T20: clear_scopes
+	scope:nvm_test_root = { nvm_set_scope = { key = goods:silk value = scope:nvm_test_capital } }
+	scope:nvm_test_root = { nvm_set_scope = { key = goods:cloth value = scope:nvm_test_capital } }
+	scope:nvm_test_root = { nvm_clear_scopes = yes }
+	scope:nvm_test_root = { nvm_has_scope = { key = goods:silk } }
+	if = { limit = { global_var:nvm_found = no } error_log = "NVM T20 clear_scopes expect=no got=no" }
+	else = { error_log = "NVM T20 clear_scopes expect=no got=yes" }
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# ARITHMETIC
+	# ═══════════════════════════════════════════════════════════════════════
+
+	# T20b: subtract_from_value
+	set_local_variable = { name = v value = 50 }
+	scope:nvm_test_root = { nvm_set_value = { key = goods:tea value = local_var:v } }
+	set_local_variable = { name = v value = 15 }
+	scope:nvm_test_root = { nvm_change_value = { key = goods:tea operation = subtract value = local_var:v } }
+	scope:nvm_test_root = { nvm_get_value = { key = goods:tea } }
+	set_local_variable = { name = r value = global_var:nvm_result }
+	error_log = "NVM T20b subtract expect=35 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+
+	# T20c: divide_value
+	set_local_variable = { name = v value = 5 }
+	scope:nvm_test_root = { nvm_change_value = { key = goods:tea operation = divide value = local_var:v } }
+	scope:nvm_test_root = { nvm_get_value = { key = goods:tea } }
+	set_local_variable = { name = r value = global_var:nvm_result }
+	error_log = "NVM T20c divide expect=7 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# TYPE CHECKING
+	# ═══════════════════════════════════════════════════════════════════════
+
+	# T20d: has_scope true and false
+	scope:nvm_test_root = { nvm_set_scope = { key = goods:fur value = scope:nvm_test_capital } }
+	scope:nvm_test_root = { nvm_has_scope = { key = goods:fur } }
+	if = { limit = { global_var:nvm_found = yes } error_log = "NVM T20d has scope expect=yes got=yes" }
+	else = { error_log = "NVM T20d has scope expect=yes got=no" }
+	scope:nvm_test_root = { nvm_has_scope = { key = goods:paper } }
+	if = { limit = { global_var:nvm_found = no } error_log = "NVM T20e no scope expect=no got=no" }
+	else = { error_log = "NVM T20e no scope expect=no got=yes" }
+
+	# T20f: check_key reports all three types at once
+	# goods:tea has a value (T20c), goods:fur has a scope (T20d),
+	# nvm_test_country has a map (T17b rebuild)
+	scope:nvm_test_root = { nvm_check_key = { key = goods:tea } }
+	if = { limit = { global_var:nvm_has_value = yes } error_log = "NVM T20f tea has_value expect=yes got=yes" }
+	else = { error_log = "NVM T20f tea has_value expect=yes got=no" }
+	if = { limit = { global_var:nvm_has_map = no } error_log = "NVM T20g tea has_map expect=no got=no" }
+	else = { error_log = "NVM T20g tea has_map expect=no got=yes" }
+	scope:nvm_test_root = { nvm_check_key = { key = scope:nvm_test_country } }
+	if = { limit = { global_var:nvm_has_map = yes } error_log = "NVM T20h country has_map expect=yes got=yes" }
+	else = { error_log = "NVM T20h country has_map expect=yes got=no" }
+	if = { limit = { global_var:nvm_has_scope = no } error_log = "NVM T20i country has_scope expect=no got=no" }
+	else = { error_log = "NVM T20i country has_scope expect=no got=yes" }
+
+	# Clean up test ref
+	scope:nvm_test_root = { nvm_remove_scope = { key = goods:fur } }
+	scope:nvm_test_root = { nvm_remove_value = { key = goods:tea } }
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# MULTI-PARENT + DELETE
+	# ═══════════════════════════════════════════════════════════════════════
+
+	# T21: two parents share a child, delete_map cleans both
+	nvm_new_map = yes
+	scope:nvm_map = { save_scope_as = nvm_pa }
+	nvm_new_map = yes
+	scope:nvm_map = { save_scope_as = nvm_pb }
+
+	# Create shared child via parent A
+	scope:nvm_pa = { nvm_get_or_set_map = { key = goods:cloth } }
+	scope:nvm_cursor = { save_scope_as = nvm_shared }
+
+	# Parent B also links to the same child
+	scope:nvm_pb = {
+		add_to_variable_map = { name = nvm_children key = goods:silk value = scope:nvm_shared }
+	}
+	scope:nvm_shared = {
+		add_to_variable_list = { name = nvm_parents target = scope:nvm_pb }
+	}
+
+	# Verify both parents reach it
+	set_local_variable = { name = v value = 88 }
+	scope:nvm_shared = { nvm_set_value = { key = goods:paper value = local_var:v } }
+	scope:nvm_pa = { nvm_get_map = { key = goods:cloth } }
+	scope:nvm_cursor = { nvm_get_value = { key = goods:paper } }
+	set_local_variable = { name = r value = global_var:nvm_result }
+	error_log = "NVM T21a parent A reads shared expect=88 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+	scope:nvm_pb = { nvm_get_map = { key = goods:silk } }
+	scope:nvm_cursor = { nvm_get_value = { key = goods:paper } }
+	set_local_variable = { name = r value = global_var:nvm_result }
+	error_log = "NVM T21b parent B reads shared expect=88 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+
+	# Delete shared child, both parents cleaned
+	scope:nvm_shared = { nvm_delete_map = yes }
+	scope:nvm_pa = { nvm_has_map = { key = goods:cloth } }
+	if = { limit = { global_var:nvm_found = no } error_log = "NVM T21c parent A cleaned expect=no got=no" }
+	else = { error_log = "NVM T21c parent A cleaned expect=no got=yes" }
+	scope:nvm_pb = { nvm_has_map = { key = goods:silk } }
+	if = { limit = { global_var:nvm_found = no } error_log = "NVM T21d parent B cleaned expect=no got=no" }
+	else = { error_log = "NVM T21d parent B cleaned expect=no got=yes" }
+
+	# T22: delete_tree recursively frees a subtree
+	nvm_new_map = yes
+	scope:nvm_map = { save_scope_as = nvm_tree_root }
+	scope:nvm_tree_root = { nvm_get_or_set_map = { key = goods:wheat } }
+	scope:nvm_cursor = { save_scope_as = nvm_tree_child }
+	scope:nvm_tree_child = { nvm_get_or_set_map = { key = goods:iron } }
+	scope:nvm_cursor = { save_scope_as = nvm_tree_grandchild }
+	set_local_variable = { name = v value = 123 }
+	scope:nvm_tree_grandchild = { nvm_set_value = { key = goods:silk value = local_var:v } }
+
+	# Verify depth before delete
+	scope:nvm_tree_root = { nvm_get_map = { key = goods:wheat } }
+	scope:nvm_cursor = { nvm_get_map = { key = goods:iron } }
+	scope:nvm_cursor = { nvm_get_value = { key = goods:silk } }
+	set_local_variable = { name = r value = global_var:nvm_result }
+	error_log = "NVM T22a pre-delete depth3 expect=123 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+
+	# Delete tree from root
+	scope:nvm_tree_root = { nvm_delete_tree = yes }
+
+	# Grandchild should be wiped (variable map gone)
+	scope:nvm_tree_grandchild = { nvm_has_value = { key = goods:silk } }
+	if = { limit = { global_var:nvm_found = no } error_log = "NVM T22b grandchild wiped expect=no got=no" }
+	else = { error_log = "NVM T22b grandchild wiped expect=no got=yes" }
+
+	# T23: pool recycling, allocate + delete + reallocate gives clean node
+	nvm_new_map = yes
+	scope:nvm_map = { save_scope_as = nvm_recycle }
+	set_local_variable = { name = v value = 999 }
+	scope:nvm_recycle = { nvm_set_value = { key = goods:wheat value = local_var:v } }
+	scope:nvm_recycle = { nvm_delete_map = yes }
+
+	# Reallocate; new_map should wipe stale data
+	nvm_new_map = yes
+	scope:nvm_map = { nvm_has_value = { key = goods:wheat } }
+	if = { limit = { global_var:nvm_found = no } error_log = "NVM T23 recycled clean expect=no got=no" }
+	else = { error_log = "NVM T23 recycled clean expect=no got=yes" }
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# LOCATION TYPE COVERAGE
+	# ═══════════════════════════════════════════════════════════════════════
+
+	# T24: owned location (baseline)
+	random_country = {
+		limit = { is_real_country = yes }
+		random_owned_location = { save_scope_as = nvm_loc_owned }
+	}
+	set_local_variable = { name = v value = 42 }
+	scope:nvm_loc_owned = {
+		if = { limit = { is_key_in_variable_map = { name = nvm_loctest target = goods:wheat } }
+			remove_from_variable_map = { name = nvm_loctest key = goods:wheat }
+		}
+		add_to_variable_map = { name = nvm_loctest key = goods:wheat value = local_var:v }
+		set_global_variable = { name = nvm_result value = "variable_map(nvm_loctest|goods:wheat)" }
+	}
+	set_local_variable = { name = r value = global_var:nvm_result }
+	error_log = "NVM T24 owned expect=42 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+	scope:nvm_loc_owned = { clear_variable_map = nvm_loctest }
+
+	# T25: ownable but unowned
+	random_in_global_list = {
+		variable = nvm_unowned_pool
+		save_scope_as = nvm_loc_unowned
+	}
+	set_local_variable = { name = v value = 77 }
+	scope:nvm_loc_unowned = {
+		if = { limit = { is_key_in_variable_map = { name = nvm_loctest target = goods:iron } }
+			remove_from_variable_map = { name = nvm_loctest key = goods:iron }
+		}
+		add_to_variable_map = { name = nvm_loctest key = goods:iron value = local_var:v }
+		set_global_variable = { name = nvm_result value = "variable_map(nvm_loctest|goods:iron)" }
+	}
+	set_local_variable = { name = r value = global_var:nvm_result }
+	error_log = "NVM T25 unowned expect=77 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+
+	# T26: unownable (sea/wasteland)
+	random_in_global_list = {
+		variable = nvm_unownable_pool
+		save_scope_as = nvm_loc_unownable
+	}
+	set_local_variable = { name = v value = 55 }
+	scope:nvm_loc_unownable = {
+		if = { limit = { is_key_in_variable_map = { name = nvm_loctest target = goods:silk } }
+			remove_from_variable_map = { name = nvm_loctest key = goods:silk }
+		}
+		add_to_variable_map = { name = nvm_loctest key = goods:silk value = local_var:v }
+		set_global_variable = { name = nvm_result value = "variable_map(nvm_loctest|goods:silk)" }
+	}
+	set_local_variable = { name = r value = global_var:nvm_result }
+	error_log = "NVM T26 unownable expect=55 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# VARIABLE-STORED DICTIONARY REFERENCE
+	# Tests accessing a dictionary via var:X on a game scope.
+	# ═══════════════════════════════════════════════════════════════════════
+
+	# T22b: store dict reference as variable on a country, access via var:
+	nvm_new_map = yes
+	scope:nvm_map = { save_scope_as = nvm_var_test_dict }
+	set_local_variable = { name = v value = 333 }
+	scope:nvm_var_test_dict = { nvm_set_value = { key = goods:silk value = local_var:v } }
+
+	# Store the dictionary reference on a country as a plain variable
+	scope:nvm_test_country = {
+		set_variable = { name = nvm_my_dict value = scope:nvm_var_test_dict }
+	}
+
+	# Access it via var: on the country
+	scope:nvm_test_country = {
+		var:nvm_my_dict = { nvm_get_value = { key = goods:silk } }
+	}
+	set_local_variable = { name = r value = global_var:nvm_result }
+	error_log = "NVM T22b var read expect=333 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+
+	# Write via var: and read back
+	set_local_variable = { name = v value = 444 }
+	scope:nvm_test_country = {
+		var:nvm_my_dict = { nvm_set_value = { key = goods:cloth value = local_var:v } }
+	}
+	scope:nvm_test_country = {
+		var:nvm_my_dict = { nvm_get_value = { key = goods:cloth } }
+	}
+	set_local_variable = { name = r value = global_var:nvm_result }
+	error_log = "NVM T22c var write/read expect=444 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+
+	# Navigate into a child via var:
+	scope:nvm_test_country = {
+		var:nvm_my_dict = { nvm_get_or_set_map = { key = goods:wine } }
+	}
+	set_local_variable = { name = v value = 555 }
+	scope:nvm_cursor = { nvm_set_value = { key = goods:tea value = local_var:v } }
+	scope:nvm_test_country = {
+		var:nvm_my_dict = { nvm_get_map = { key = goods:wine } }
+	}
+	scope:nvm_cursor = { nvm_get_value = { key = goods:tea } }
+	set_local_variable = { name = r value = global_var:nvm_result }
+	error_log = "NVM T22d var navigate child expect=555 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+
+	# T22e: scope block entry via var
+	scope:nvm_test_country.var:nvm_my_dict = { nvm_get_value = { key = goods:silk } }
+	set_local_variable = { name = r value = global_var:nvm_result }
+	error_log = "NVM T22e scope.var block expect=333 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+
+	# T22e2: dot chain directly into scripted effect
+	scope:nvm_test_country.var:nvm_my_dict.nvm_get_value = { key = goods:silk }
+	set_local_variable = { name = r value = global_var:nvm_result }
+	error_log = "NVM T22e2 dot chain effect expect=333 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+
+	# T22f: dot chain from scope traversal (capital.owner.var)
+	scope:nvm_test_capital = {
+		owner = {
+			set_variable = { name = nvm_chain_test value = scope:nvm_var_test_dict }
+		}
+	}
+	scope:nvm_test_capital.owner.var:nvm_chain_test = { nvm_get_value = { key = goods:silk } }
+	set_local_variable = { name = r value = global_var:nvm_result }
+	error_log = "NVM T22f deep chain expect=333 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+
+	# T22g: inline read via dot chain in a value expression
+	set_local_variable = {
+		name = r
+		value = "scope:nvm_test_country.var:nvm_my_dict.variable_map(nvm_values|goods:silk)"
+	}
+	error_log = "NVM T22g inline read expect=333 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+
+	# Cleanup
+	scope:nvm_var_test_dict = { nvm_delete_tree = yes }
+	scope:nvm_test_country = { remove_variable = nvm_my_dict }
+	scope:nvm_test_capital = { owner = { remove_variable = nvm_chain_test } }
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# INTEGRITY
+	# ═══════════════════════════════════════════════════════════════════════
+
+	# T27: original test root survived everything (values were cleared in T10)
+	scope:nvm_test_root = { nvm_get_map = { key = scope:nvm_test_country } }
+	scope:nvm_cursor = { nvm_get_value = { key = goods:silk } }
+	set_local_variable = { name = r value = global_var:nvm_result }
+	error_log = "NVM T27 root child intact expect=55 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+
+	error_log = "NVM test end"
+}

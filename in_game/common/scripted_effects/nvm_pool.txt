@@ -1,0 +1,109 @@
+﻿# ═══════════════════════════════════════════════════════════════════════════════
+# NESTED MAP POOL MANAGEMENT
+# ═══════════════════════════════════════════════════════════════════════════════
+# The nested map system uses game locations as dictionary storage. Each
+# dictionary node is a location that holds variable maps for children,
+# values, and scope references. The pool tracks which locations are
+# available for allocation.
+#
+# All location types work: owned, unowned, and unownable (sea/wasteland).
+# Total pool is approximately 28,000 locations.
+#
+# Locations with the nvm_exclude variable are skipped during pool init.
+# This allows other mods to reserve specific locations from the pool.
+#
+# IMPORTANT: All scope saves in this system use save_scope_as (persistent).
+# save_temporary_scope_as does NOT support variable map writes on re-entry.
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# nvm_init_pool
+# ═══════════════════════════════════════════════════════════════════════════════
+# Call once at game start. Collects all eligible locations into the free pool.
+# Sets global_var:nvm_pool_size to the total count.
+#
+# Must run before any nvm_new_map calls.
+
+nvm_init_pool = {
+	# Reset the pool list
+	clear_global_variable_list = nvm_free_pool
+	set_local_variable = { name = nvm_pool_count value = 0 }
+
+	# Add every location that isn't excluded
+	every_location_in_the_world = {
+		limit = {
+			NOT = { has_variable = nvm_exclude }
+		}
+		add_to_global_variable_list = { name = nvm_free_pool target = this }
+		change_local_variable = { name = nvm_pool_count add = 1 }
+	}
+
+	set_global_variable = { name = nvm_pool_size value = local_var:nvm_pool_count }
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# nvm_init_test_pools
+# ═══════════════════════════════════════════════════════════════════════════════
+# Test-only helper. Builds separate pools for unowned and unownable locations
+# to verify variable map support across location types.
+
+nvm_init_test_pools = {
+	clear_global_variable_list = nvm_unowned_pool
+	clear_global_variable_list = nvm_unownable_pool
+	set_local_variable = { name = ct_unowned value = 0 }
+	set_local_variable = { name = ct_unownable value = 0 }
+
+	every_location_in_the_world = {
+		limit = { is_ownable = yes NOT = { exists = owner } }
+		add_to_global_variable_list = { name = nvm_unowned_pool target = this }
+		change_local_variable = { name = ct_unowned add = 1 }
+	}
+	every_location_in_the_world = {
+		limit = { is_ownable = no }
+		add_to_global_variable_list = { name = nvm_unownable_pool target = this }
+		change_local_variable = { name = ct_unownable add = 1 }
+	}
+
+	error_log = "NVM unowned=[SCOPE.GetLocalVariable('ct_unowned').GetValue|0] unownable=[SCOPE.GetLocalVariable('ct_unownable').GetValue|0]"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# nvm_new_map
+# ═══════════════════════════════════════════════════════════════════════════════
+# Allocates a fresh dictionary from the pool. Picks a random available
+# location, removes it from the free pool, and wipes any stale data
+# left from a previous allocation cycle.
+#
+# Result:
+#   scope:nvm_map = the new dictionary
+#   global_var:nvm_found = 1 on success, 0 if pool is empty
+#
+# Usage:
+#   nvm_new_map = yes
+#   scope:nvm_map = { save_scope_as = my_data }
+
+nvm_new_map = {
+	if = {
+		limit = { has_global_variable_list = nvm_free_pool }
+
+		# Pick a random location from the pool
+		random_in_global_list = {
+			variable = nvm_free_pool
+			save_scope_as = nvm_map
+		}
+		remove_from_global_variable_list = { name = nvm_free_pool target = scope:nvm_map }
+
+		# Wipe any stale data from previous use
+		scope:nvm_map = {
+			if = { limit = { has_variable_map = nvm_children } clear_variable_map = nvm_children }
+			if = { limit = { has_variable_map = nvm_values } clear_variable_map = nvm_values }
+			if = { limit = { has_variable_map = nvm_scopes } clear_variable_map = nvm_scopes }
+			if = { limit = { has_variable_list = nvm_parents } clear_variable_list = nvm_parents }
+			if = { limit = { has_variable = nvm_accessed_from } remove_variable = nvm_accessed_from }
+		}
+
+		set_global_variable = { name = nvm_found value = yes }
+	} else = {
+		error_log = "NVM new_map FAILED: pool exhausted"
+		set_global_variable = { name = nvm_found value = no }
+	}
+}

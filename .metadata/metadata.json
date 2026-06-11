@@ -1,0 +1,12 @@
+{
+    "name": "Nested Variable Maps (Dev)",
+    "id": "NestedVariableMaps",
+    "version": "0.1",
+    "supported_game_version": "1.3.*",
+    "short_description": "Test harness for nested variable map data structure using unownable locations as node pool.",
+    "tags": [
+        "Utilities"
+    ],
+    "relationships": [],
+    "game_custom_data": {}
+}
