@@ -1,0 +1,173 @@
+﻿# ═══════════════════════════════════════════════════════════════════════════════
+# NESTED MAP LIFECYCLE
+# ═══════════════════════════════════════════════════════════════════════════════
+# Internal helpers and destructive operations for dictionary node management.
+# Handles parent reference cleanup, data wiping, pool return, and recursive
+# deletion. nvm_clean_parent_refs and nvm_wipe_and_release are internal.
+# nvm_delete_map and nvm_delete_tree are the public deletion API.
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_clean_parent_refs (internal helper)
+# ───────────────────────────────────────────────────────────────────────────────
+# Iterates all parents of the current node, scans each parent's children map,
+# and removes any entries that point to this node. Called by the delete
+# operations to prevent dangling references.
+#
+# Requires scope:nvm_deleting to be set to the node being deleted.
+#
+# Cannot remove map entries during iteration, so collects matching keys into
+# a global list first, then removes them in a second pass.
+
+nvm_clean_parent_refs = {
+	if = { limit = { has_variable_list = nvm_parents }
+		every_in_list = {
+			variable = nvm_parents
+			save_scope_as = nvm_del_parent
+
+			# Collect keys in nvm_children that point to the node being deleted
+			clear_global_variable_list = nvm_keys_to_remove
+			scope:nvm_del_parent = {
+				if = { limit = { has_variable_map = nvm_children }
+					every_key_in_variable_map = {
+						variable = nvm_children
+						save_scope_as = nvm_del_iter_key
+						scope:nvm_del_parent = {
+							set_global_variable = { name = nvm_nav value = "variable_map(nvm_children|scope:nvm_del_iter_key)" }
+						}
+						global_var:nvm_nav = {
+							if = {
+								limit = { this = scope:nvm_deleting }
+								add_to_global_variable_list = { name = nvm_keys_to_remove target = scope:nvm_del_iter_key }
+							}
+						}
+					}
+				}
+			}
+			every_in_global_list = {
+				variable = nvm_keys_to_remove
+				save_scope_as = nvm_del_remove_key
+				scope:nvm_del_parent = {
+					remove_from_variable_map = { name = nvm_children key = scope:nvm_del_remove_key }
+				}
+			}
+
+			# Collect keys in nvm_lists that point to the node being deleted
+			clear_global_variable_list = nvm_keys_to_remove
+			scope:nvm_del_parent = {
+				if = { limit = { has_variable_map = nvm_lists }
+					every_key_in_variable_map = {
+						variable = nvm_lists
+						save_scope_as = nvm_del_iter_key
+						scope:nvm_del_parent = {
+							set_global_variable = { name = nvm_nav value = "variable_map(nvm_lists|scope:nvm_del_iter_key)" }
+						}
+						global_var:nvm_nav = {
+							if = {
+								limit = { this = scope:nvm_deleting }
+								add_to_global_variable_list = { name = nvm_keys_to_remove target = scope:nvm_del_iter_key }
+							}
+						}
+					}
+				}
+			}
+			every_in_global_list = {
+				variable = nvm_keys_to_remove
+				save_scope_as = nvm_del_remove_key
+				scope:nvm_del_parent = {
+					remove_from_variable_map = { name = nvm_lists key = scope:nvm_del_remove_key }
+				}
+			}
+		}
+	}
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_wipe_and_release (internal helper)
+# ───────────────────────────────────────────────────────────────────────────────
+# Clears all data on a node and returns it to the free pool.
+# Called after parent references have been cleaned up.
+
+nvm_wipe_and_release = {
+	if = { limit = { has_variable_map = nvm_children } clear_variable_map = nvm_children }
+	if = { limit = { has_variable_map = nvm_values } clear_variable_map = nvm_values }
+	if = { limit = { has_variable_map = nvm_scopes } clear_variable_map = nvm_scopes }
+	if = { limit = { has_variable_map = nvm_lists } clear_variable_map = nvm_lists }
+	if = { limit = { has_variable_list = nvm_parents } clear_variable_list = nvm_parents }
+	if = { limit = { has_variable = nvm_accessed_from } remove_variable = nvm_accessed_from }
+	if = { limit = { has_variable = nvm_is_list } remove_variable = nvm_is_list }
+	if = { limit = { has_variable = nvm_list_size } remove_variable = nvm_list_size }
+	remove_from_global_variable_map = { name = nvm_pool_active key = this }
+	add_to_global_variable_map = { name = nvm_pool_free key = this value = 0 }
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_delete_map
+# ───────────────────────────────────────────────────────────────────────────────
+# Deletes this dictionary. Cleans up all parent references pointing to it,
+# then wipes data and returns the node to the pool.
+#
+# Children are orphaned, not deleted. Use nvm_delete_tree for recursive cleanup.
+#
+# Scope: the dictionary to delete
+
+nvm_delete_map = {
+	save_scope_as = nvm_deleting
+	nvm_clean_parent_refs = yes
+	nvm_wipe_and_release = yes
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_delete_tree
+# ───────────────────────────────────────────────────────────────────────────────
+# Recursively deletes this dictionary and its entire subtree. Cleans parent
+# references at every level. Children are processed before the parent is
+# wiped, ensuring no references are left dangling.
+#
+# Uses call_recursive_scripted_effect for real recursion.
+#
+# Scope: the root dictionary to delete
+
+nvm_delete_tree = {
+	save_scope_as = nvm_deleting
+	nvm_clean_parent_refs = yes
+
+	if = {
+		limit = { NOT = { has_variable = nvm_is_list } }
+
+		# Collect child nodes into a temporary list before recursing.
+		# Recursion runs nvm_clean_parent_refs which modifies nvm_children;
+		# iterating a separate list avoids concurrent modification.
+		clear_global_variable_list = nvm_del_nodes
+
+		if = { limit = { has_variable_map = nvm_children }
+			every_key_in_variable_map = {
+				variable = nvm_children
+				save_scope_as = nvm_del_child_key
+				scope:nvm_deleting = {
+					set_global_variable = { name = nvm_nav value = "variable_map(nvm_children|scope:nvm_del_child_key)" }
+				}
+				add_to_global_variable_list = { name = nvm_del_nodes target = global_var:nvm_nav }
+			}
+		}
+
+		if = { limit = { has_variable_map = nvm_lists }
+			every_key_in_variable_map = {
+				variable = nvm_lists
+				save_scope_as = nvm_del_child_key
+				scope:nvm_deleting = {
+					set_global_variable = { name = nvm_nav value = "variable_map(nvm_lists|scope:nvm_del_child_key)" }
+				}
+				add_to_global_variable_list = { name = nvm_del_nodes target = global_var:nvm_nav }
+			}
+		}
+
+		every_in_global_list = {
+			variable = nvm_del_nodes
+			call_recursive_scripted_effect = {
+				effect = "nvm_delete_tree = yes"
+			}
+		}
+	}
+
+	scope:nvm_deleting = { nvm_wipe_and_release = yes }
+}

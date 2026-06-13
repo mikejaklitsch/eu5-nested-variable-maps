@@ -32,8 +32,7 @@ nvm_run_stress_tests = {
 
 	# Spot check: read back the saved node's value directly
 	scope:nvm_spot_node = { nvm_get_value = { key = goods:wheat } }
-	set_local_variable = { name = r value = global_var:nvm_result }
-	error_log = "NVM S1 spot check expect=2500 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+	assert_if = { limit = { NOT = { global_var:nvm_result = 2500 } } text = "NVM S1 spot check: expected 2500" }
 
 	# ═══════════════════════════════════════════════════════════════════════
 	# S2: MASS DELETE (return all 5000)
@@ -78,8 +77,7 @@ nvm_run_stress_tests = {
 	scope:nvm_cursor = { nvm_get_map = { key = goods:salt } }
 	scope:nvm_cursor = { nvm_get_map = { key = goods:coffee } }
 	scope:nvm_cursor = { nvm_get_value = { key = goods:sugar } }
-	set_local_variable = { name = r value = global_var:nvm_result }
-	error_log = "NVM S3 depth10 expect=777 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+	assert_if = { limit = { NOT = { global_var:nvm_result = 777 } } text = "NVM S3 depth10: expected 777" }
 
 	scope:nvm_stress_deep = { nvm_delete_tree = yes }
 
@@ -135,8 +133,7 @@ nvm_run_stress_tests = {
 			change_local_variable = { name = nvm_stale add = 1 }
 		}
 	}
-	set_local_variable = { name = r value = local_var:nvm_stale }
-	error_log = "NVM S5 stale parents expect=0 got=[SCOPE.GetLocalVariable('r').GetValue|0]"
+	assert_if = { limit = { NOT = { local_var:nvm_stale = 0 } } text = "NVM S5 stale parents: expected 0" }
 
 	every_in_global_list = {
 		variable = nvm_stress_parents
@@ -160,10 +157,126 @@ nvm_run_stress_tests = {
 	# ═══════════════════════════════════════════════════════════════════════
 
 	set_local_variable = { name = pool_after value = 0 }
-	every_in_global_list = {
-		variable = nvm_free_pool
+	every_key_in_global_variable_map = {
+		variable = nvm_pool_free
 		change_local_variable = { name = pool_after add = 1 }
 	}
 	error_log = "NVM STRESS pool after=[SCOPE.GetLocalVariable('pool_after').GetValue|0] (started at [SCOPE.GetLocalVariable('pool_before').GetValue|0])"
 	error_log = "NVM STRESS complete"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ABSURD STRESS TEST (200,000 nodes)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Tests the character-based pool at extreme scale. Creates 200k dead
+# characters as storage nodes, verifies data integrity, then frees them all.
+# Fires on the second monthly pulse via on_action.
+
+nvm_run_absurd_stress_impl = {
+	error_log = "NVM ABSURD === start ==="
+	nvm_init_pool = yes
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# PHASE 1: MASS ALLOCATION (200,000 nodes)
+	# ═══════════════════════════════════════════════════════════════════════
+
+	set_local_variable = { name = ct value = 0 }
+
+	while = {
+		count = 200000
+		nvm_new_map = yes
+		change_local_variable = { name = ct add = 1 }
+
+		if = { limit = { local_var:ct = 10000 }
+			error_log = "NVM ABSURD 10k allocated"
+		}
+		if = { limit = { local_var:ct = 25000 }
+			error_log = "NVM ABSURD 25k allocated"
+		}
+		if = { limit = { local_var:ct = 50000 }
+			set_local_variable = { name = v value = 50000 }
+			scope:nvm_map = { nvm_set_value = { key = goods:wheat value = local_var:v } }
+			scope:nvm_map = { save_scope_as = nvm_abs_50k }
+			error_log = "NVM ABSURD 50k allocated"
+		}
+		if = { limit = { local_var:ct = 100000 }
+			set_local_variable = { name = v value = 100000 }
+			scope:nvm_map = { nvm_set_value = { key = goods:wheat value = local_var:v } }
+			scope:nvm_map = { save_scope_as = nvm_abs_100k }
+			error_log = "NVM ABSURD 100k allocated"
+		}
+		if = { limit = { local_var:ct = 150000 }
+			set_local_variable = { name = v value = 150000 }
+			scope:nvm_map = { nvm_set_value = { key = goods:wheat value = local_var:v } }
+			scope:nvm_map = { save_scope_as = nvm_abs_150k }
+			error_log = "NVM ABSURD 150k allocated"
+		}
+		if = { limit = { local_var:ct = 200000 }
+			error_log = "NVM ABSURD 200k allocated"
+		}
+	}
+
+	set_local_variable = { name = r value = local_var:ct }
+	error_log = "NVM ABSURD allocation complete total=[SCOPE.GetLocalVariable('r').GetValue|0]"
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# PHASE 2: SPOT CHECKS
+	# ═══════════════════════════════════════════════════════════════════════
+
+	scope:nvm_abs_50k = { nvm_get_value = { key = goods:wheat } }
+	assert_if = { limit = { NOT = { global_var:nvm_result = 50000 } } text = "NVM ABSURD spot 50k: expected 50000" }
+
+	scope:nvm_abs_100k = { nvm_get_value = { key = goods:wheat } }
+	assert_if = { limit = { NOT = { global_var:nvm_result = 100000 } } text = "NVM ABSURD spot 100k: expected 100000" }
+
+	scope:nvm_abs_150k = { nvm_get_value = { key = goods:wheat } }
+	assert_if = { limit = { NOT = { global_var:nvm_result = 150000 } } text = "NVM ABSURD spot 150k: expected 150000" }
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# PHASE 3: COUNT ACTIVE NODES
+	# ═══════════════════════════════════════════════════════════════════════
+
+	set_local_variable = { name = active value = 0 }
+	every_key_in_global_variable_map = {
+		variable = nvm_pool_active
+		change_local_variable = { name = active add = 1 }
+	}
+	error_log = "NVM ABSURD active count=[SCOPE.GetLocalVariable('active').GetValue|0]"
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# PHASE 4: MASS FREE (collect then delete to avoid concurrent modification)
+	# ═══════════════════════════════════════════════════════════════════════
+
+	error_log = "NVM ABSURD mass free start"
+	clear_global_variable_list = nvm_absurd_batch
+	every_key_in_global_variable_map = {
+		variable = nvm_pool_active
+		add_to_global_variable_list = { name = nvm_absurd_batch target = this }
+	}
+	every_in_global_list = {
+		variable = nvm_absurd_batch
+		nvm_delete_map = yes
+	}
+	clear_global_variable_list = nvm_absurd_batch
+	error_log = "NVM ABSURD mass free complete"
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# PHASE 5: POOL INTEGRITY
+	# ═══════════════════════════════════════════════════════════════════════
+
+	set_local_variable = { name = pool_free value = 0 }
+	every_key_in_global_variable_map = {
+		variable = nvm_pool_free
+		change_local_variable = { name = pool_free add = 1 }
+	}
+	set_local_variable = { name = pool_active value = 0 }
+	every_key_in_global_variable_map = {
+		variable = nvm_pool_active
+		change_local_variable = { name = pool_active add = 1 }
+	}
+	error_log = "NVM ABSURD pool free=[SCOPE.GetLocalVariable('pool_free').GetValue|0] active=[SCOPE.GetLocalVariable('pool_active').GetValue|0]"
+
+	set_local_variable = { name = r value = global_var:nvm_pool_size }
+	error_log = "NVM ABSURD total ever created=[SCOPE.GetLocalVariable('r').GetValue|0]"
+	error_log = "NVM ABSURD === complete ==="
 }

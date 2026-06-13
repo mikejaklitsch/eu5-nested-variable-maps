@@ -2,7 +2,9 @@
 
 ## What this is
 
-EU5's variable maps are flat: one map name, one level of key-value pairs. This mod provides nested dictionaries on top of variable maps by using game locations as storage nodes. Each dictionary is a location drawn from a shared pool of ~28,000. The dictionary holds three internal variable maps: `nvm_children` for sub-dictionary references, `nvm_values` for numbers, and `nvm_scopes` for scope references. Parent tracking via an `nvm_parents` list enables automatic cleanup of references when a dictionary is deleted.
+EU5's variable maps are flat: one map name, one level of key-value pairs. This mod provides nested dictionaries on top of variable maps by using game locations as storage nodes. Each dictionary is a location drawn from a shared pool of ~28,000. The dictionary holds internal variable maps: `nvm_children` for sub-dictionary references, `nvm_values` for numbers, `nvm_scopes` for scope references, and `nvm_lists` for ordered list references. Parent tracking via an `nvm_parents` list enables automatic cleanup of references when a dictionary is deleted.
+
+Lists are a special node type that store ordered sequences of scope references. A list node reuses the `nvm_children` map with numeric keys as indices. Lists cost one pool node each and support append, indexed access, membership testing, and removal (with swap-from-end semantics).
 
 ## How it works
 
@@ -205,7 +207,7 @@ scope:wine_recipe = {
 }
 ```
 
-Internal map names for iteration: `nvm_values`, `nvm_children`, `nvm_scopes`.
+Internal map names for iteration: `nvm_values`, `nvm_children`, `nvm_scopes`, `nvm_lists`.
 
 ### Step 11: Delete a recipe
 
@@ -232,6 +234,39 @@ To delete just the recipe node without touching its children, use `nvm_delete_ma
 ```
 c:FRA.var:cookbook = { nvm_delete_tree = yes }
 ```
+
+### Step 13: Store a list of approved chefs
+
+Lists store ordered sequences of scope references at a key. Each list costs one pool node.
+
+```
+# Create a list of approved chefs on France's cookbook
+c:FRA.var:cookbook.nvm_get_or_set_list = { key = goods:wine }
+# scope:nvm_cursor = the list node
+
+# Add chefs
+scope:nvm_cursor = { save_scope_as = chef_list }
+scope:chef_list = { nvm_list_add = { value = c:FRA } }
+scope:chef_list = { nvm_list_add = { value = c:SPA } }
+scope:chef_list = { nvm_list_add = { value = c:ITA } }
+
+# Read the list size
+# scope:chef_list.var:nvm_list_size = 3
+
+# Get by index
+scope:chef_list = { nvm_list_get = { index = 0 } }
+# scope:nvm_scope = c:FRA
+
+# Check membership
+scope:chef_list = { nvm_list_has = { value = c:ENG } }
+# global_var:nvm_found = no
+
+# Remove by value (uses swap-from-end internally)
+scope:chef_list = { nvm_list_remove_value = { value = c:SPA } }
+# List is now [c:FRA, c:ITA] (ITA swapped into SPA's slot)
+```
+
+**Warning:** After any remove operation, indices may have changed. The last element fills the gap left by the removed item. Do not cache indices across edits.
 
 ---
 
@@ -297,11 +332,55 @@ Arithmetic on missing keys starts from 0. Values can be bare literals or variabl
 | `nvm_remove_scope = { key = X }` | |
 | `nvm_clear_scopes = yes` | |
 
+### Ordered Lists
+
+| Operation | Result |
+|-----------|--------|
+| `nvm_get_or_set_list = { key = X }` | `scope:nvm_cursor`, `global_var:nvm_found` |
+| `nvm_get_list = { key = X }` | `scope:nvm_cursor`, `global_var:nvm_found` |
+| `nvm_has_list = { key = X }` | `global_var:nvm_found` |
+| `nvm_remove_list = { key = X }` | |
+| `nvm_clear_lists = yes` | |
+| `nvm_list_add = { value = X }` | |
+| `nvm_list_get = { index = N }` | `scope:nvm_scope`, `global_var:nvm_found` |
+| `nvm_list_remove = { index = N }` | Swaps last item into gap |
+| `nvm_list_find = { value = X }` | `global_var:nvm_result` (index), `global_var:nvm_found` |
+| `nvm_list_has = { value = X }` | `global_var:nvm_found` |
+| `nvm_list_remove_value = { value = X }` | Find + swap-remove |
+| `nvm_list_clear = yes` | |
+
+List size is readable directly: `scope:my_list.var:nvm_list_size`
+
+**Index instability:** Removal swaps the last element into the removed slot. Do not cache or rely on indices across remove operations.
+
+### Unordered Sets
+
+| Operation | Result |
+|-----------|--------|
+| `nvm_get_or_set_set = { key = X }` | `scope:nvm_cursor`, `global_var:nvm_found` |
+| `nvm_get_set = { key = X }` | `scope:nvm_cursor`, `global_var:nvm_found` |
+| `nvm_set_add = { value = X }` | Silent no-op on duplicates |
+| `nvm_set_has = { value = X }` | `global_var:nvm_found` (O(1)) |
+| `nvm_set_remove = { value = X }` | |
+| `nvm_set_clear = yes` | |
+
+Sets use scope keys as the items; no index management. `nvm_has_list`, `nvm_remove_list`, and `nvm_clear_lists` work for both types. Iterate directly:
+
+```
+scope:my_set = {
+    every_key_in_variable_map = {
+        variable = nvm_children
+        save_scope_as = item
+        # scope:item IS the set element
+    }
+}
+```
+
 ### Type Checking
 
 | Operation | Result |
 |-----------|--------|
-| `nvm_check_key = { key = X }` | `global_var:nvm_has_map`, `nvm_has_value`, `nvm_has_scope` |
+| `nvm_check_key = { key = X }` | `global_var:nvm_has_map`, `nvm_has_value`, `nvm_has_scope`, `nvm_has_list` |
 
 ### Navigation
 
@@ -318,8 +397,8 @@ Multiple parents can reference the same child. Manual linking requires registeri
 
 ## Reserved Names
 
-On pool locations: `nvm_children`, `nvm_values`, `nvm_scopes`, `nvm_parents`, `nvm_accessed_from`
+On pool locations: `nvm_children`, `nvm_values`, `nvm_scopes`, `nvm_lists`, `nvm_parents`, `nvm_accessed_from`, `nvm_is_list`, `nvm_list_size`, `nvm_op_idx`
 
 Scopes (overwritten each call): `nvm_map`, `nvm_cursor`, `nvm_scope`, `nvm_op_key`, `nvm_op_key_a`, `nvm_op_key_b`, `nvm_op_parent`, `nvm_deleting`, `nvm_del_parent`, `nvm_del_iter_key`, `nvm_del_remove_key`
 
-Globals: `nvm_result`, `nvm_found`, `nvm_has_map`, `nvm_has_value`, `nvm_has_scope`, `nvm_nav`, `nvm_pool_size`, `nvm_free_pool`, `nvm_keys_to_remove`
+Globals: `nvm_result`, `nvm_found`, `nvm_has_map`, `nvm_has_value`, `nvm_has_scope`, `nvm_has_list`, `nvm_nav`, `nvm_pool_size`, `nvm_free_pool`, `nvm_keys_to_remove`

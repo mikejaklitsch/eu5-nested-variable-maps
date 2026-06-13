@@ -1,15 +1,15 @@
-﻿on_game_start = {
-	on_actions = { nvm_run_tests_startup }
-}
-
-weather_monthly_pulse = {
-	on_actions = { nvm_run_tests_monthly }
-}
+﻿# Uncomment to run tests. All output goes to logs/error.log; filter with: eu5-logs -f NVM
+#on_game_start = {
+#	on_actions = { nvm_run_tests_startup }
+#}
+#
+#weather_monthly_pulse = {
+#	on_actions = { nvm_run_tests_monthly nvm_run_absurd_stress }
+#}
 
 nvm_run_tests_startup = {
 	effect = {
 		error_log = "NVM === game_start ==="
-		nvm_init_test_pools = yes
 		nvm_run_tests_impl = yes
 		error_log = "NVM === stress ==="
 		nvm_run_stress_tests = yes
@@ -21,7 +21,15 @@ nvm_run_tests_monthly = {
 	effect = {
 		set_global_variable = nvm_monthly_done
 		error_log = "NVM === monthly_pulse ==="
-		nvm_init_test_pools = yes
 		nvm_run_tests_impl = yes
+	}
+}
+
+nvm_run_absurd_stress = {
+	trigger = {
+		has_global_variable = nvm_monthly_done
+	}
+	effect = {
+		nvm_run_absurd_stress_impl = yes
 	}
 }
