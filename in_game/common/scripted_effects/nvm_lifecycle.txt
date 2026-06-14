@@ -32,9 +32,9 @@ nvm_clean_parent_refs = {
 						variable = nvm_children
 						save_scope_as = nvm_del_iter_key
 						scope:nvm_del_parent = {
-							set_global_variable = { name = nvm_nav value = "variable_map(nvm_children|scope:nvm_del_iter_key)" }
+							set_local_variable = { name = nvm_nav value = "variable_map(nvm_children|scope:nvm_del_iter_key)" }
 						}
-						global_var:nvm_nav = {
+						local_var:nvm_nav = {
 							if = {
 								limit = { this = scope:nvm_deleting }
 								add_to_global_variable_list = { name = nvm_keys_to_remove target = scope:nvm_del_iter_key }
@@ -59,9 +59,9 @@ nvm_clean_parent_refs = {
 						variable = nvm_lists
 						save_scope_as = nvm_del_iter_key
 						scope:nvm_del_parent = {
-							set_global_variable = { name = nvm_nav value = "variable_map(nvm_lists|scope:nvm_del_iter_key)" }
+							set_local_variable = { name = nvm_nav value = "variable_map(nvm_lists|scope:nvm_del_iter_key)" }
 						}
-						global_var:nvm_nav = {
+						local_var:nvm_nav = {
 							if = {
 								limit = { this = scope:nvm_deleting }
 								add_to_global_variable_list = { name = nvm_keys_to_remove target = scope:nvm_del_iter_key }
@@ -96,6 +96,7 @@ nvm_wipe_and_release = {
 	if = { limit = { has_variable = nvm_accessed_from } remove_variable = nvm_accessed_from }
 	if = { limit = { has_variable = nvm_is_list } remove_variable = nvm_is_list }
 	if = { limit = { has_variable = nvm_list_size } remove_variable = nvm_list_size }
+	if = { limit = { has_variable = nvm_type } remove_variable = nvm_type }
 	remove_from_global_variable_map = { name = nvm_pool_active key = this }
 	add_to_global_variable_map = { name = nvm_pool_free key = this value = 0 }
 }
@@ -144,9 +145,9 @@ nvm_delete_tree = {
 				variable = nvm_children
 				save_scope_as = nvm_del_child_key
 				scope:nvm_deleting = {
-					set_global_variable = { name = nvm_nav value = "variable_map(nvm_children|scope:nvm_del_child_key)" }
+					set_local_variable = { name = nvm_nav value = "variable_map(nvm_children|scope:nvm_del_child_key)" }
 				}
-				add_to_global_variable_list = { name = nvm_del_nodes target = global_var:nvm_nav }
+				add_to_global_variable_list = { name = nvm_del_nodes target = local_var:nvm_nav }
 			}
 		}
 
@@ -155,9 +156,9 @@ nvm_delete_tree = {
 				variable = nvm_lists
 				save_scope_as = nvm_del_child_key
 				scope:nvm_deleting = {
-					set_global_variable = { name = nvm_nav value = "variable_map(nvm_lists|scope:nvm_del_child_key)" }
+					set_local_variable = { name = nvm_nav value = "variable_map(nvm_lists|scope:nvm_del_child_key)" }
 				}
-				add_to_global_variable_list = { name = nvm_del_nodes target = global_var:nvm_nav }
+				add_to_global_variable_list = { name = nvm_del_nodes target = local_var:nvm_nav }
 			}
 		}
 

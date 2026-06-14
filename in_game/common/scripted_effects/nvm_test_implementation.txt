@@ -1,11 +1,11 @@
-# ═══════════════════════════════════════════════════════════════════════════════
+﻿# ═══════════════════════════════════════════════════════════════════════════════
 # NESTED MAP TEST SUITE
 # ═══════════════════════════════════════════════════════════════════════════════
 # Permanent test suite. Enable on_action dispatch in nvm_test.txt to run.
 # Tests use assert_if: a failing assertion halts execution with a message.
-# Filter output with: eu5-logs error -f NVM
+# Grep for NVM in logs/error.log to filter output.
 
-nvm_run_tests_impl = {
+nvm_run_tests_implementation = {
 	nvm_init_pool = yes
 
 	# Count characters in the world (diagnostics)
@@ -15,7 +15,7 @@ nvm_run_tests_impl = {
 			change_local_variable = { name = ct_characters add = 1 }
 		}
 	}
-	error_log = "NVM characters=[SCOPE.GetLocalVariable('ct_characters').GetValue|0]"
+	debug_log = "NVM characters=[SCOPE.GetLocalVariable('ct_characters').GetValue|0]"
 
 	# ═══════════════════════════════════════════════════════════════════════
 	# SETUP
@@ -40,69 +40,69 @@ nvm_run_tests_impl = {
 	# T0: bare literal value (no local_var)
 	scope:nvm_test_root = { nvm_set_value = { key = goods:fur value = 13 } }
 	scope:nvm_test_root = { nvm_get_value = { key = goods:fur } }
-	assert_if = { limit = { NOT = { global_var:nvm_result = 13 } } text = "NVM T0 bare literal: expected 13" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 13 } } text = "NVM T0 bare literal: expected 13" }
 	scope:nvm_test_root = { nvm_remove_value = { key = goods:fur } }
 
 	# T1: set and get a value
 	set_local_variable = { name = v value = 42 }
 	scope:nvm_test_root = { nvm_set_value = { key = goods:wheat value = local_var:v } }
 	scope:nvm_test_root = { nvm_get_value = { key = goods:wheat } }
-	assert_if = { limit = { NOT = { global_var:nvm_result = 42 } } text = "NVM T1 set/get: expected 42" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 42 } } text = "NVM T1 set/get: expected 42" }
 
 	# T2: multiple values, first key survives
 	set_local_variable = { name = v value = 77 }
 	scope:nvm_test_root = { nvm_set_value = { key = goods:iron value = local_var:v } }
 	scope:nvm_test_root = { nvm_get_value = { key = goods:iron } }
-	assert_if = { limit = { NOT = { global_var:nvm_result = 77 } } text = "NVM T2a second key: expected 77" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 77 } } text = "NVM T2a second key: expected 77" }
 	scope:nvm_test_root = { nvm_get_value = { key = goods:wheat } }
-	assert_if = { limit = { NOT = { global_var:nvm_result = 42 } } text = "NVM T2b first key intact: expected 42" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 42 } } text = "NVM T2b first key intact: expected 42" }
 
 	# T3: overwrite existing value
 	set_local_variable = { name = v value = 99 }
 	scope:nvm_test_root = { nvm_set_value = { key = goods:wheat value = local_var:v } }
 	scope:nvm_test_root = { nvm_get_value = { key = goods:wheat } }
-	assert_if = { limit = { NOT = { global_var:nvm_result = 99 } } text = "NVM T3 overwrite: expected 99" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 99 } } text = "NVM T3 overwrite: expected 99" }
 
 	# T4: add_to_value accumulates
 	set_local_variable = { name = v value = 1 }
 	scope:nvm_test_root = { nvm_change_value = { key = goods:wheat operation = add value = local_var:v } }
 	scope:nvm_test_root = { nvm_get_value = { key = goods:wheat } }
-	assert_if = { limit = { NOT = { global_var:nvm_result = 100 } } text = "NVM T4 add_to: expected 100" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 100 } } text = "NVM T4 add_to: expected 100" }
 
 	# T5: add_to_value on missing key creates from 0
 	set_local_variable = { name = v value = 5 }
 	scope:nvm_test_root = { nvm_change_value = { key = goods:coffee operation = add value = local_var:v } }
 	scope:nvm_test_root = { nvm_get_value = { key = goods:coffee } }
-	assert_if = { limit = { NOT = { global_var:nvm_result = 5 } } text = "NVM T5 add_to missing key: expected 5" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 5 } } text = "NVM T5 add_to missing key: expected 5" }
 
 	# T6: multiply_value
 	set_local_variable = { name = v value = 2 }
 	scope:nvm_test_root = { nvm_change_value = { key = goods:wheat operation = multiply value = local_var:v } }
 	scope:nvm_test_root = { nvm_get_value = { key = goods:wheat } }
-	assert_if = { limit = { NOT = { global_var:nvm_result = 200 } } text = "NVM T6 multiply: expected 200" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 200 } } text = "NVM T6 multiply: expected 200" }
 
 	# T7: swap_values
 	scope:nvm_test_root = { nvm_swap_values = { key_a = goods:wheat key_b = goods:iron } }
 	scope:nvm_test_root = { nvm_get_value = { key = goods:wheat } }
-	assert_if = { limit = { NOT = { global_var:nvm_result = 77 } } text = "NVM T7a swap wheat: expected 77" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 77 } } text = "NVM T7a swap wheat: expected 77" }
 	scope:nvm_test_root = { nvm_get_value = { key = goods:iron } }
-	assert_if = { limit = { NOT = { global_var:nvm_result = 200 } } text = "NVM T7b swap iron: expected 200" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 200 } } text = "NVM T7b swap iron: expected 200" }
 
 	# T8: has_value true and false
 	scope:nvm_test_root = { nvm_has_value = { key = goods:wheat } }
-	assert_if = { limit = { global_var:nvm_found = no } text = "NVM T8a has wheat: expected found" }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM T8a has wheat: expected found" }
 	scope:nvm_test_root = { nvm_has_value = { key = goods:fur } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T8b has fur: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T8b has fur: expected not found" }
 
 	# T9: remove_value
 	scope:nvm_test_root = { nvm_remove_value = { key = goods:iron } }
 	scope:nvm_test_root = { nvm_has_value = { key = goods:iron } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T9 removed iron: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T9 removed iron: expected not found" }
 
 	# T10: clear_values wipes all, children survive
 	scope:nvm_test_root = { nvm_clear_values = yes }
 	scope:nvm_test_root = { nvm_has_value = { key = goods:wheat } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T10 clear_values: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T10 clear_values: expected not found" }
 
 	# ═══════════════════════════════════════════════════════════════════════
 	# SUB-DICTIONARY NAVIGATION
@@ -114,12 +114,12 @@ nvm_run_tests_impl = {
 	scope:nvm_cursor = { nvm_set_value = { key = goods:silk value = local_var:v } }
 	scope:nvm_test_root = { nvm_get_map = { key = scope:nvm_test_country } }
 	scope:nvm_cursor = { nvm_get_value = { key = goods:silk } }
-	assert_if = { limit = { NOT = { global_var:nvm_result = 55 } } text = "NVM T11 depth2: expected 55" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 55 } } text = "NVM T11 depth2: expected 55" }
 
 	# T12: add_map to existing child navigates without duplicating parent
 	scope:nvm_test_root = { nvm_get_or_set_map = { key = scope:nvm_test_country } }
 	scope:nvm_cursor = { nvm_get_value = { key = goods:silk } }
-	assert_if = { limit = { NOT = { global_var:nvm_result = 55 } } text = "NVM T12 re-enter child: expected 55" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 55 } } text = "NVM T12 re-enter child: expected 55" }
 
 	# T13: depth 3
 	scope:nvm_test_root = { nvm_get_or_set_map = { key = scope:nvm_test_country } }
@@ -129,7 +129,7 @@ nvm_run_tests_impl = {
 	scope:nvm_test_root = { nvm_get_map = { key = scope:nvm_test_country } }
 	scope:nvm_cursor = { nvm_get_map = { key = scope:nvm_test_sc } }
 	scope:nvm_cursor = { nvm_get_value = { key = goods:paper } }
-	assert_if = { limit = { NOT = { global_var:nvm_result = 7 } } text = "NVM T13 depth3: expected 7" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 7 } } text = "NVM T13 depth3: expected 7" }
 
 	# T14: multiple children, earlier child survives
 	scope:nvm_test_root = { nvm_get_or_set_map = { key = goods:wine } }
@@ -137,31 +137,31 @@ nvm_run_tests_impl = {
 	scope:nvm_cursor = { nvm_set_value = { key = goods:cloth value = local_var:v } }
 	scope:nvm_test_root = { nvm_get_map = { key = scope:nvm_test_country } }
 	scope:nvm_cursor = { nvm_get_value = { key = goods:silk } }
-	assert_if = { limit = { NOT = { global_var:nvm_result = 55 } } text = "NVM T14 first child intact: expected 55" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 55 } } text = "NVM T14 first child intact: expected 55" }
 
 	# T15: get_map returns found=no on missing key
 	scope:nvm_test_root = { nvm_get_map = { key = goods:fur } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T15 missing child: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T15 missing child: expected not found" }
 
 	# T16: has_map true and false
 	scope:nvm_test_root = { nvm_has_map = { key = scope:nvm_test_country } }
-	assert_if = { limit = { global_var:nvm_found = no } text = "NVM T16a has map: expected found" }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM T16a has map: expected found" }
 	scope:nvm_test_root = { nvm_has_map = { key = goods:fur } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T16b no map: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T16b no map: expected not found" }
 
 	# T17: remove_map unlinks child and unregisters from parent list
 	scope:nvm_test_root = { nvm_remove_map = { key = goods:wine } }
 	scope:nvm_test_root = { nvm_has_map = { key = goods:wine } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T17 remove_map: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T17 remove_map: expected not found" }
 
 	# T17b: clear_maps removes all children references
 	scope:nvm_test_root = { nvm_get_or_set_map = { key = goods:wine } }
 	scope:nvm_test_root = { nvm_get_or_set_map = { key = goods:tea } }
 	scope:nvm_test_root = { nvm_clear_maps = yes }
 	scope:nvm_test_root = { nvm_has_map = { key = goods:wine } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T17b clear_maps wine: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T17b clear_maps wine: expected not found" }
 	scope:nvm_test_root = { nvm_has_map = { key = goods:tea } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T17c clear_maps tea: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T17c clear_maps tea: expected not found" }
 	# Rebuild the country child since clear_maps wiped it
 	scope:nvm_test_root = { nvm_get_or_set_map = { key = scope:nvm_test_country } }
 	set_local_variable = { name = v value = 55 }
@@ -174,24 +174,24 @@ nvm_run_tests_impl = {
 	# T18: store and retrieve a location reference
 	scope:nvm_test_root = { nvm_set_scope = { key = goods:wine value = scope:nvm_test_capital } }
 	scope:nvm_test_root = { nvm_get_scope = { key = goods:wine } }
-	assert_if = { limit = { global_var:nvm_found = no } text = "NVM T18a scope found: expected found" }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM T18a scope found: expected found" }
 	scope:nvm_scope = {
 		assert_if = { limit = { NOT = { this = scope:nvm_test_capital } } text = "NVM T18b scope identity: expected capital" }
 	}
 
 	# T19: has_scope and remove_scope
 	scope:nvm_test_root = { nvm_has_scope = { key = goods:wine } }
-	assert_if = { limit = { global_var:nvm_found = no } text = "NVM T19a has scope: expected found" }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM T19a has scope: expected found" }
 	scope:nvm_test_root = { nvm_remove_scope = { key = goods:wine } }
 	scope:nvm_test_root = { nvm_has_scope = { key = goods:wine } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T19b removed scope: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T19b removed scope: expected not found" }
 
 	# T20: clear_scopes
 	scope:nvm_test_root = { nvm_set_scope = { key = goods:silk value = scope:nvm_test_capital } }
 	scope:nvm_test_root = { nvm_set_scope = { key = goods:cloth value = scope:nvm_test_capital } }
 	scope:nvm_test_root = { nvm_clear_scopes = yes }
 	scope:nvm_test_root = { nvm_has_scope = { key = goods:silk } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T20 clear_scopes: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T20 clear_scopes: expected not found" }
 
 	# ═══════════════════════════════════════════════════════════════════════
 	# ARITHMETIC
@@ -203,13 +203,13 @@ nvm_run_tests_impl = {
 	set_local_variable = { name = v value = 15 }
 	scope:nvm_test_root = { nvm_change_value = { key = goods:tea operation = subtract value = local_var:v } }
 	scope:nvm_test_root = { nvm_get_value = { key = goods:tea } }
-	assert_if = { limit = { NOT = { global_var:nvm_result = 35 } } text = "NVM T20b subtract: expected 35" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 35 } } text = "NVM T20b subtract: expected 35" }
 
 	# T20c: divide_value
 	set_local_variable = { name = v value = 5 }
 	scope:nvm_test_root = { nvm_change_value = { key = goods:tea operation = divide value = local_var:v } }
 	scope:nvm_test_root = { nvm_get_value = { key = goods:tea } }
-	assert_if = { limit = { NOT = { global_var:nvm_result = 7 } } text = "NVM T20c divide: expected 7" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 7 } } text = "NVM T20c divide: expected 7" }
 
 	# ═══════════════════════════════════════════════════════════════════════
 	# TYPE CHECKING
@@ -218,19 +218,19 @@ nvm_run_tests_impl = {
 	# T20d: has_scope true and false
 	scope:nvm_test_root = { nvm_set_scope = { key = goods:fur value = scope:nvm_test_capital } }
 	scope:nvm_test_root = { nvm_has_scope = { key = goods:fur } }
-	assert_if = { limit = { global_var:nvm_found = no } text = "NVM T20d has scope: expected found" }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM T20d has scope: expected found" }
 	scope:nvm_test_root = { nvm_has_scope = { key = goods:paper } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T20e no scope: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T20e no scope: expected not found" }
 
 	# T20f: check_key reports all three types at once
 	# goods:tea has a value (T20c), goods:fur has a scope (T20d),
 	# nvm_test_country has a map (T17b rebuild)
 	scope:nvm_test_root = { nvm_check_key = { key = goods:tea } }
-	assert_if = { limit = { global_var:nvm_has_value = no } text = "NVM T20f tea has_value: expected yes" }
-	assert_if = { limit = { global_var:nvm_has_map = yes } text = "NVM T20g tea has_map: expected no" }
+	assert_if = { limit = { local_var:nvm_has_value = no } text = "NVM T20f tea has_value: expected yes" }
+	assert_if = { limit = { local_var:nvm_has_map = yes } text = "NVM T20g tea has_map: expected no" }
 	scope:nvm_test_root = { nvm_check_key = { key = scope:nvm_test_country } }
-	assert_if = { limit = { global_var:nvm_has_map = no } text = "NVM T20h country has_map: expected yes" }
-	assert_if = { limit = { global_var:nvm_has_scope = yes } text = "NVM T20i country has_scope: expected no" }
+	assert_if = { limit = { local_var:nvm_has_map = no } text = "NVM T20h country has_map: expected yes" }
+	assert_if = { limit = { local_var:nvm_has_scope = yes } text = "NVM T20i country has_scope: expected no" }
 
 	# Clean up test ref
 	scope:nvm_test_root = { nvm_remove_scope = { key = goods:fur } }
@@ -263,17 +263,17 @@ nvm_run_tests_impl = {
 	scope:nvm_shared = { nvm_set_value = { key = goods:paper value = local_var:v } }
 	scope:nvm_pa = { nvm_get_map = { key = goods:cloth } }
 	scope:nvm_cursor = { nvm_get_value = { key = goods:paper } }
-	assert_if = { limit = { NOT = { global_var:nvm_result = 88 } } text = "NVM T21a parent A reads shared: expected 88" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 88 } } text = "NVM T21a parent A reads shared: expected 88" }
 	scope:nvm_pb = { nvm_get_map = { key = goods:silk } }
 	scope:nvm_cursor = { nvm_get_value = { key = goods:paper } }
-	assert_if = { limit = { NOT = { global_var:nvm_result = 88 } } text = "NVM T21b parent B reads shared: expected 88" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 88 } } text = "NVM T21b parent B reads shared: expected 88" }
 
 	# Delete shared child, both parents cleaned
 	scope:nvm_shared = { nvm_delete_map = yes }
 	scope:nvm_pa = { nvm_has_map = { key = goods:cloth } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T21c parent A cleaned: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T21c parent A cleaned: expected not found" }
 	scope:nvm_pb = { nvm_has_map = { key = goods:silk } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T21d parent B cleaned: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T21d parent B cleaned: expected not found" }
 
 	# T22: delete_tree recursively frees a subtree
 	nvm_new_map = yes
@@ -289,14 +289,14 @@ nvm_run_tests_impl = {
 	scope:nvm_tree_root = { nvm_get_map = { key = goods:wheat } }
 	scope:nvm_cursor = { nvm_get_map = { key = goods:iron } }
 	scope:nvm_cursor = { nvm_get_value = { key = goods:silk } }
-	assert_if = { limit = { NOT = { global_var:nvm_result = 123 } } text = "NVM T22a pre-delete depth3: expected 123" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 123 } } text = "NVM T22a pre-delete depth3: expected 123" }
 
 	# Delete tree from root
 	scope:nvm_tree_root = { nvm_delete_tree = yes }
 
 	# Grandchild should be wiped (variable map gone)
 	scope:nvm_tree_grandchild = { nvm_has_value = { key = goods:silk } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T22b grandchild wiped: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T22b grandchild wiped: expected not found" }
 
 	# T23: pool recycling, allocate + delete + reallocate gives clean node
 	nvm_new_map = yes
@@ -308,7 +308,7 @@ nvm_run_tests_impl = {
 	# Reallocate; new_map should wipe stale data
 	nvm_new_map = yes
 	scope:nvm_map = { nvm_has_value = { key = goods:wheat } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T23 recycled clean: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T23 recycled clean: expected not found" }
 
 	# ═══════════════════════════════════════════════════════════════════════
 	# VARIABLE-STORED DICTIONARY REFERENCE
@@ -330,7 +330,7 @@ nvm_run_tests_impl = {
 	scope:nvm_test_country = {
 		var:nvm_my_dict = { nvm_get_value = { key = goods:silk } }
 	}
-	assert_if = { limit = { NOT = { global_var:nvm_result = 333 } } text = "NVM T24a var read: expected 333" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 333 } } text = "NVM T24a var read: expected 333" }
 
 	# Write via var: and read back
 	set_local_variable = { name = v value = 444 }
@@ -340,7 +340,7 @@ nvm_run_tests_impl = {
 	scope:nvm_test_country = {
 		var:nvm_my_dict = { nvm_get_value = { key = goods:cloth } }
 	}
-	assert_if = { limit = { NOT = { global_var:nvm_result = 444 } } text = "NVM T24b var write/read: expected 444" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 444 } } text = "NVM T24b var write/read: expected 444" }
 
 	# Navigate into a child via var:
 	scope:nvm_test_country = {
@@ -352,15 +352,15 @@ nvm_run_tests_impl = {
 		var:nvm_my_dict = { nvm_get_map = { key = goods:wine } }
 	}
 	scope:nvm_cursor = { nvm_get_value = { key = goods:tea } }
-	assert_if = { limit = { NOT = { global_var:nvm_result = 555 } } text = "NVM T24c var navigate child: expected 555" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 555 } } text = "NVM T24c var navigate child: expected 555" }
 
 	# T24d: scope block entry via var
 	scope:nvm_test_country.var:nvm_my_dict = { nvm_get_value = { key = goods:silk } }
-	assert_if = { limit = { NOT = { global_var:nvm_result = 333 } } text = "NVM T24d scope.var block: expected 333" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 333 } } text = "NVM T24d scope.var block: expected 333" }
 
 	# T24e: dot chain directly into scripted effect
 	scope:nvm_test_country.var:nvm_my_dict.nvm_get_value = { key = goods:silk }
-	assert_if = { limit = { NOT = { global_var:nvm_result = 333 } } text = "NVM T24e dot chain effect: expected 333" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 333 } } text = "NVM T24e dot chain effect: expected 333" }
 
 	# T24f: dot chain from scope traversal (capital.owner.var)
 	scope:nvm_test_capital = {
@@ -369,7 +369,7 @@ nvm_run_tests_impl = {
 		}
 	}
 	scope:nvm_test_capital.owner.var:nvm_chain_test = { nvm_get_value = { key = goods:silk } }
-	assert_if = { limit = { NOT = { global_var:nvm_result = 333 } } text = "NVM T24f deep chain: expected 333" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 333 } } text = "NVM T24f deep chain: expected 333" }
 
 	# T24g: inline read via dot chain in a value expression
 	set_local_variable = {
@@ -409,23 +409,23 @@ nvm_run_tests_impl = {
 
 	# T32: out of bounds returns found=no
 	scope:nvm_test_list = { nvm_list_get = { index = 5 } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T32 oob: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T32 oob: expected not found" }
 
 	# T33: has_list on parent
 	scope:nvm_test_root = { nvm_has_list = { key = goods:fur } }
-	assert_if = { limit = { global_var:nvm_found = no } text = "NVM T33a has_list: expected found" }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM T33a has_list: expected found" }
 	scope:nvm_test_root = { nvm_has_list = { key = goods:wine } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T33b no list: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T33b no list: expected not found" }
 
 	# T34: list_has (membership check)
 	scope:nvm_test_list = { nvm_list_has = { value = goods:iron } }
-	assert_if = { limit = { global_var:nvm_found = no } text = "NVM T34a list_has: expected found" }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM T34a list_has: expected found" }
 	scope:nvm_test_list = { nvm_list_has = { value = goods:coffee } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T34b list_has: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T34b list_has: expected not found" }
 
 	# T35: list_find returns correct index
 	scope:nvm_test_list = { nvm_list_find = { value = goods:iron } }
-	assert_if = { limit = { NOT = { global_var:nvm_result = 1 } } text = "NVM T35 find iron: expected index 1" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 1 } } text = "NVM T35 find iron: expected index 1" }
 
 	# T36: list_remove from middle (swap-from-end)
 	# List is [wheat, iron, silk]. Remove index 0 (wheat). Last item (silk) fills slot 0.
@@ -461,7 +461,7 @@ nvm_run_tests_impl = {
 		assert_if = { limit = { NOT = { var:nvm_list_size = 2 } } text = "NVM T38a remove_value size: expected 2" }
 	}
 	scope:nvm_test_list = { nvm_list_has = { value = goods:tea } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T38b tea removed: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T38b tea removed: expected not found" }
 
 	# T39: list_clear
 	scope:nvm_test_list = { nvm_list_clear = yes }
@@ -471,13 +471,13 @@ nvm_run_tests_impl = {
 
 	# T40: check_key reports has_list
 	scope:nvm_test_root = { nvm_check_key = { key = goods:fur } }
-	assert_if = { limit = { global_var:nvm_has_list = no } text = "NVM T40a check_key list: expected yes" }
-	assert_if = { limit = { global_var:nvm_has_map = yes } text = "NVM T40b check_key map: expected no" }
+	assert_if = { limit = { local_var:nvm_has_list = no } text = "NVM T40a check_key list: expected yes" }
+	assert_if = { limit = { local_var:nvm_has_map = yes } text = "NVM T40b check_key map: expected no" }
 
 	# T41: get_or_set_list on existing list navigates without duplicating
 	scope:nvm_test_list = { nvm_list_add = { value = goods:paper } }
 	scope:nvm_test_root = { nvm_get_or_set_list = { key = goods:fur } }
-	assert_if = { limit = { global_var:nvm_found = no } text = "NVM T41a re-enter: expected found" }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM T41a re-enter: expected found" }
 	scope:nvm_cursor = {
 		assert_if = { limit = { NOT = { var:nvm_list_size = 1 } } text = "NVM T41b re-enter size: expected 1" }
 	}
@@ -497,7 +497,7 @@ nvm_run_tests_impl = {
 	# T43: remove_list unlinks from parent
 	scope:nvm_test_root = { nvm_remove_list = { key = goods:fur } }
 	scope:nvm_test_root = { nvm_has_list = { key = goods:fur } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T43 remove_list: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T43 remove_list: expected not found" }
 
 	# ═══════════════════════════════════════════════════════════════════════
 	# UNORDERED SETS
@@ -512,34 +512,34 @@ nvm_run_tests_impl = {
 
 	# T51: set_has (O(1) membership)
 	scope:nvm_test_set = { nvm_set_has = { value = goods:iron } }
-	assert_if = { limit = { global_var:nvm_found = no } text = "NVM T51a set_has: expected found" }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM T51a set_has: expected found" }
 	scope:nvm_test_set = { nvm_set_has = { value = goods:coffee } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T51b set_has: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T51b set_has: expected not found" }
 
 	# T52: duplicate add is no-op (set semantics)
 	scope:nvm_test_set = { nvm_set_add = { value = goods:wheat } }
 	scope:nvm_test_set = { nvm_set_has = { value = goods:wheat } }
-	assert_if = { limit = { global_var:nvm_found = no } text = "NVM T52 dup add: expected found" }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM T52 dup add: expected found" }
 
 	# T53: set_remove
 	scope:nvm_test_set = { nvm_set_remove = { value = goods:iron } }
 	scope:nvm_test_set = { nvm_set_has = { value = goods:iron } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T53a removed: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T53a removed: expected not found" }
 	# Other items unaffected
 	scope:nvm_test_set = { nvm_set_has = { value = goods:wheat } }
-	assert_if = { limit = { global_var:nvm_found = no } text = "NVM T53b intact: expected found" }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM T53b intact: expected found" }
 
 	# T54: set_clear
 	scope:nvm_test_set = { nvm_set_clear = yes }
 	scope:nvm_test_set = { nvm_set_has = { value = goods:wheat } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T54 cleared: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T54 cleared: expected not found" }
 
 	# T55: get_or_set_set on existing navigates
 	scope:nvm_test_set = { nvm_set_add = { value = goods:paper } }
 	scope:nvm_test_root = { nvm_get_or_set_set = { key = goods:salt } }
-	assert_if = { limit = { global_var:nvm_found = no } text = "NVM T55a re-enter: expected found" }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM T55a re-enter: expected found" }
 	scope:nvm_cursor = { nvm_set_has = { value = goods:paper } }
-	assert_if = { limit = { global_var:nvm_found = no } text = "NVM T55b data intact: expected found" }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM T55b data intact: expected found" }
 
 	# T56: delete_tree cleans up set nodes
 	nvm_new_map = yes
@@ -564,53 +564,53 @@ nvm_run_tests_impl = {
 
 	# T60: get_value on missing key returns 0
 	scope:nvm_adv = { nvm_get_value = { key = goods:fur } }
-	assert_if = { limit = { NOT = { global_var:nvm_result = 0 } } text = "NVM T60 get missing: expected 0" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 0 } } text = "NVM T60 get missing: expected 0" }
 
 	# T61: set/get zero; has_value true for zero
 	set_local_variable = { name = v value = 0 }
 	scope:nvm_adv = { nvm_set_value = { key = goods:wheat value = local_var:v } }
 	scope:nvm_adv = { nvm_get_value = { key = goods:wheat } }
-	assert_if = { limit = { NOT = { global_var:nvm_result = 0 } } text = "NVM T61a zero value: expected 0" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 0 } } text = "NVM T61a zero value: expected 0" }
 	scope:nvm_adv = { nvm_has_value = { key = goods:wheat } }
-	assert_if = { limit = { global_var:nvm_found = no } text = "NVM T61b has zero: expected found" }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM T61b has zero: expected found" }
 
 	# T62: negative value
 	set_local_variable = { name = v value = -50 }
 	scope:nvm_adv = { nvm_set_value = { key = goods:iron value = local_var:v } }
 	scope:nvm_adv = { nvm_get_value = { key = goods:iron } }
-	assert_if = { limit = { NOT = { global_var:nvm_result = -50 } } text = "NVM T62 negative: expected -50" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = -50 } } text = "NVM T62 negative: expected -50" }
 
 	# T63: subtract on missing key (0 - 10 = -10)
 	set_local_variable = { name = v value = 10 }
 	scope:nvm_adv = { nvm_change_value = { key = goods:silk operation = subtract value = local_var:v } }
 	scope:nvm_adv = { nvm_get_value = { key = goods:silk } }
-	assert_if = { limit = { NOT = { global_var:nvm_result = -10 } } text = "NVM T63 subtract missing: expected -10" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = -10 } } text = "NVM T63 subtract missing: expected -10" }
 
 	# T64: multiply on missing key (0 * 5 = 0)
 	set_local_variable = { name = v value = 5 }
 	scope:nvm_adv = { nvm_change_value = { key = goods:tea operation = multiply value = local_var:v } }
 	scope:nvm_adv = { nvm_get_value = { key = goods:tea } }
-	assert_if = { limit = { NOT = { global_var:nvm_result = 0 } } text = "NVM T64 multiply missing: expected 0" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 0 } } text = "NVM T64 multiply missing: expected 0" }
 
 	# T65: swap where one key is missing
 	set_local_variable = { name = v value = 25 }
 	scope:nvm_adv = { nvm_set_value = { key = goods:cloth value = local_var:v } }
 	scope:nvm_adv = { nvm_swap_values = { key_a = goods:cloth key_b = goods:paper } }
 	scope:nvm_adv = { nvm_get_value = { key = goods:cloth } }
-	assert_if = { limit = { NOT = { global_var:nvm_result = 0 } } text = "NVM T65a swap partial A: expected 0" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 0 } } text = "NVM T65a swap partial A: expected 0" }
 	scope:nvm_adv = { nvm_get_value = { key = goods:paper } }
-	assert_if = { limit = { NOT = { global_var:nvm_result = 25 } } text = "NVM T65b swap partial B: expected 25" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 25 } } text = "NVM T65b swap partial B: expected 25" }
 
 	# T66: swap where both keys are missing (creates ghost entries with 0)
 	scope:nvm_adv = { nvm_swap_values = { key_a = goods:coffee key_b = goods:wine } }
 	scope:nvm_adv = { nvm_has_value = { key = goods:coffee } }
-	assert_if = { limit = { global_var:nvm_found = no } text = "NVM T66a swap ghost A: expected found" }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM T66a swap ghost A: expected found" }
 	scope:nvm_adv = { nvm_has_value = { key = goods:wine } }
-	assert_if = { limit = { global_var:nvm_found = no } text = "NVM T66b swap ghost B: expected found" }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM T66b swap ghost B: expected found" }
 
 	# T67: remove_value on missing key (no-op, no crash)
 	scope:nvm_adv = { nvm_remove_value = { key = goods:fur } }
-	error_log = "NVM T67 remove missing value (no crash)"
+	debug_log = "NVM T67 remove missing value (no crash)"
 
 	scope:nvm_adv = { nvm_delete_map = yes }
 
@@ -623,7 +623,7 @@ nvm_run_tests_impl = {
 
 	# T68: get_scope on missing key
 	scope:nvm_adv = { nvm_get_scope = { key = goods:fur } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T68 get scope missing: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T68 get scope missing: expected not found" }
 
 	# T69: overwrite existing scope
 	scope:nvm_adv = { nvm_set_scope = { key = goods:wheat value = scope:nvm_test_capital } }
@@ -635,7 +635,7 @@ nvm_run_tests_impl = {
 
 	# T70: remove_scope on missing key (no-op, no crash)
 	scope:nvm_adv = { nvm_remove_scope = { key = goods:fur } }
-	error_log = "NVM T70 remove missing scope (no crash)"
+	debug_log = "NVM T70 remove missing scope (no crash)"
 
 	scope:nvm_adv = { nvm_delete_map = yes }
 
@@ -647,18 +647,18 @@ nvm_run_tests_impl = {
 	nvm_new_map = yes
 	scope:nvm_map = { save_scope_as = nvm_adv }
 	scope:nvm_adv = { nvm_remove_map = { key = goods:fur } }
-	error_log = "NVM T71 remove missing map (no crash)"
+	debug_log = "NVM T71 remove missing map (no crash)"
 
 	# T72: clear empty containers (no crash)
 	scope:nvm_adv = { nvm_clear_values = yes }
 	scope:nvm_adv = { nvm_clear_maps = yes }
 	scope:nvm_adv = { nvm_clear_scopes = yes }
 	scope:nvm_adv = { nvm_clear_lists = yes }
-	error_log = "NVM T72 clear empty containers (no crash)"
+	debug_log = "NVM T72 clear empty containers (no crash)"
 
 	# T73: delete_map on node with no parents
 	scope:nvm_adv = { nvm_delete_map = yes }
-	error_log = "NVM T73 delete orphan (no crash)"
+	debug_log = "NVM T73 delete orphan (no crash)"
 
 	# T74: delete_tree on leaf node (no children)
 	nvm_new_map = yes
@@ -667,7 +667,7 @@ nvm_run_tests_impl = {
 	scope:nvm_adv = { nvm_set_value = { key = goods:wheat value = local_var:v } }
 	scope:nvm_adv = { nvm_delete_tree = yes }
 	scope:nvm_adv = { nvm_has_value = { key = goods:wheat } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T74 delete_tree leaf: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T74 delete_tree leaf: expected not found" }
 
 	# ═══════════════════════════════════════════════════════════════════════
 	# ADVERSARIAL: LISTS
@@ -680,29 +680,29 @@ nvm_run_tests_impl = {
 	scope:nvm_adv = { nvm_get_or_set_list = { key = goods:wheat } }
 	scope:nvm_cursor = { nvm_list_add = { value = goods:silk } }
 	scope:nvm_adv = { nvm_get_list = { key = goods:wheat } }
-	assert_if = { limit = { global_var:nvm_found = no } text = "NVM T75a get_list found: expected found" }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM T75a get_list found: expected found" }
 	scope:nvm_cursor = {
 		assert_if = { limit = { NOT = { var:nvm_list_size = 1 } } text = "NVM T75b get_list size: expected 1" }
 	}
 
 	# T76: nvm_get_list on missing key
 	scope:nvm_adv = { nvm_get_list = { key = goods:fur } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T76 get_list missing: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T76 get_list missing: expected not found" }
 
 	# T77: nvm_clear_lists removes all list refs
 	scope:nvm_adv = { nvm_get_or_set_list = { key = goods:iron } }
 	scope:nvm_adv = { nvm_clear_lists = yes }
 	scope:nvm_adv = { nvm_has_list = { key = goods:wheat } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T77a clear_lists wheat: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T77a clear_lists wheat: expected not found" }
 	scope:nvm_adv = { nvm_has_list = { key = goods:iron } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T77b clear_lists iron: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T77b clear_lists iron: expected not found" }
 
 	# T78: list_find when not present
 	scope:nvm_adv = { nvm_get_or_set_list = { key = goods:silk } }
 	scope:nvm_cursor = { save_scope_as = nvm_adv_list }
 	scope:nvm_adv_list = { nvm_list_add = { value = goods:wheat } }
 	scope:nvm_adv_list = { nvm_list_find = { value = goods:coffee } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T78 find absent: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T78 find absent: expected not found" }
 
 	# T79: list_remove_value when not present (no-op)
 	scope:nvm_adv_list = { nvm_list_remove_value = { value = goods:coffee } }
@@ -713,7 +713,7 @@ nvm_run_tests_impl = {
 	# T80: list_get on empty list
 	scope:nvm_adv_list = { nvm_list_clear = yes }
 	scope:nvm_adv_list = { nvm_list_get = { index = 0 } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T80 get empty list: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T80 get empty list: expected not found" }
 
 	# T81: list_add after clear
 	scope:nvm_adv_list = { nvm_list_add = { value = goods:paper } }
@@ -738,30 +738,30 @@ nvm_run_tests_impl = {
 	scope:nvm_adv = { nvm_get_or_set_set = { key = goods:wheat } }
 	scope:nvm_cursor = { nvm_set_add = { value = goods:silk } }
 	scope:nvm_adv = { nvm_get_set = { key = goods:wheat } }
-	assert_if = { limit = { global_var:nvm_found = no } text = "NVM T82a get_set found: expected found" }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM T82a get_set found: expected found" }
 	scope:nvm_cursor = { nvm_set_has = { value = goods:silk } }
-	assert_if = { limit = { global_var:nvm_found = no } text = "NVM T82b get_set data: expected found" }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM T82b get_set data: expected found" }
 
 	# T83: nvm_get_set on missing key
 	scope:nvm_adv = { nvm_get_set = { key = goods:fur } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T83 get_set missing: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T83 get_set missing: expected not found" }
 
 	# T84: set_remove non-existent item (no-op, no crash)
 	scope:nvm_adv = { nvm_get_set = { key = goods:wheat } }
 	scope:nvm_cursor = { nvm_set_remove = { value = goods:coffee } }
 	scope:nvm_cursor = { nvm_set_has = { value = goods:silk } }
-	assert_if = { limit = { global_var:nvm_found = no } text = "NVM T84 remove absent intact: expected found" }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM T84 remove absent intact: expected found" }
 
 	# T85: set_has on empty set
 	scope:nvm_adv = { nvm_get_set = { key = goods:wheat } }
 	scope:nvm_cursor = { nvm_set_clear = yes }
 	scope:nvm_cursor = { nvm_set_has = { value = goods:silk } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T85 has empty set: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T85 has empty set: expected not found" }
 
 	# T86: set_add after clear
 	scope:nvm_cursor = { nvm_set_add = { value = goods:paper } }
 	scope:nvm_cursor = { nvm_set_has = { value = goods:paper } }
-	assert_if = { limit = { global_var:nvm_found = no } text = "NVM T86 add after clear: expected found" }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM T86 add after clear: expected found" }
 
 	scope:nvm_adv = { nvm_delete_tree = yes }
 
@@ -779,31 +779,31 @@ nvm_run_tests_impl = {
 	scope:nvm_adv = { nvm_get_or_set_map = { key = goods:wheat } }
 	scope:nvm_adv = { nvm_get_or_set_list = { key = goods:wheat } }
 	scope:nvm_adv = { nvm_check_key = { key = goods:wheat } }
-	assert_if = { limit = { global_var:nvm_has_value = no } text = "NVM T87a coexist value: expected yes" }
-	assert_if = { limit = { global_var:nvm_has_scope = no } text = "NVM T87b coexist scope: expected yes" }
-	assert_if = { limit = { global_var:nvm_has_map = no } text = "NVM T87c coexist map: expected yes" }
-	assert_if = { limit = { global_var:nvm_has_list = no } text = "NVM T87d coexist list: expected yes" }
+	assert_if = { limit = { local_var:nvm_has_value = no } text = "NVM T87a coexist value: expected yes" }
+	assert_if = { limit = { local_var:nvm_has_scope = no } text = "NVM T87b coexist scope: expected yes" }
+	assert_if = { limit = { local_var:nvm_has_map = no } text = "NVM T87c coexist map: expected yes" }
+	assert_if = { limit = { local_var:nvm_has_list = no } text = "NVM T87d coexist list: expected yes" }
 
 	# T88: removing value preserves scope, map, list
 	scope:nvm_adv = { nvm_remove_value = { key = goods:wheat } }
 	scope:nvm_adv = { nvm_check_key = { key = goods:wheat } }
-	assert_if = { limit = { global_var:nvm_has_value = yes } text = "NVM T88a value gone: expected no" }
-	assert_if = { limit = { global_var:nvm_has_scope = no } text = "NVM T88b scope survives: expected yes" }
-	assert_if = { limit = { global_var:nvm_has_map = no } text = "NVM T88c map survives: expected yes" }
-	assert_if = { limit = { global_var:nvm_has_list = no } text = "NVM T88d list survives: expected yes" }
+	assert_if = { limit = { local_var:nvm_has_value = yes } text = "NVM T88a value gone: expected no" }
+	assert_if = { limit = { local_var:nvm_has_scope = no } text = "NVM T88b scope survives: expected yes" }
+	assert_if = { limit = { local_var:nvm_has_map = no } text = "NVM T88c map survives: expected yes" }
+	assert_if = { limit = { local_var:nvm_has_list = no } text = "NVM T88d list survives: expected yes" }
 
 	# T89: removing scope preserves map, list
 	scope:nvm_adv = { nvm_remove_scope = { key = goods:wheat } }
 	scope:nvm_adv = { nvm_check_key = { key = goods:wheat } }
-	assert_if = { limit = { global_var:nvm_has_scope = yes } text = "NVM T89a scope gone: expected no" }
-	assert_if = { limit = { global_var:nvm_has_map = no } text = "NVM T89b map survives: expected yes" }
-	assert_if = { limit = { global_var:nvm_has_list = no } text = "NVM T89c list survives: expected yes" }
+	assert_if = { limit = { local_var:nvm_has_scope = yes } text = "NVM T89a scope gone: expected no" }
+	assert_if = { limit = { local_var:nvm_has_map = no } text = "NVM T89b map survives: expected yes" }
+	assert_if = { limit = { local_var:nvm_has_list = no } text = "NVM T89c list survives: expected yes" }
 
 	# T90: removing map preserves list
 	scope:nvm_adv = { nvm_remove_map = { key = goods:wheat } }
 	scope:nvm_adv = { nvm_check_key = { key = goods:wheat } }
-	assert_if = { limit = { global_var:nvm_has_map = yes } text = "NVM T90a map gone: expected no" }
-	assert_if = { limit = { global_var:nvm_has_list = no } text = "NVM T90b list survives: expected yes" }
+	assert_if = { limit = { local_var:nvm_has_map = yes } text = "NVM T90a map gone: expected no" }
+	assert_if = { limit = { local_var:nvm_has_list = no } text = "NVM T90b list survives: expected yes" }
 
 	scope:nvm_adv = { nvm_delete_tree = yes }
 
@@ -832,17 +832,17 @@ nvm_run_tests_impl = {
 	# Verify both parents reach the list
 	scope:nvm_sp_a = { nvm_get_list = { key = goods:wheat } }
 	scope:nvm_cursor = { nvm_list_has = { value = goods:silk } }
-	assert_if = { limit = { global_var:nvm_found = no } text = "NVM T91a parent A reads list: expected found" }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM T91a parent A reads list: expected found" }
 	scope:nvm_sp_b = { nvm_get_list = { key = goods:iron } }
 	scope:nvm_cursor = { nvm_list_has = { value = goods:silk } }
-	assert_if = { limit = { global_var:nvm_found = no } text = "NVM T91b parent B reads list: expected found" }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM T91b parent B reads list: expected found" }
 
 	# Delete shared list, both parents should be cleaned
 	scope:nvm_shared_list = { nvm_delete_map = yes }
 	scope:nvm_sp_a = { nvm_has_list = { key = goods:wheat } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T91c parent A cleaned: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T91c parent A cleaned: expected not found" }
 	scope:nvm_sp_b = { nvm_has_list = { key = goods:iron } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T91d parent B cleaned: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T91d parent B cleaned: expected not found" }
 
 	scope:nvm_sp_a = { nvm_delete_map = yes }
 	scope:nvm_sp_b = { nvm_delete_map = yes }
@@ -868,17 +868,17 @@ nvm_run_tests_impl = {
 	# Verify both parents reach the set
 	scope:nvm_sp_a = { nvm_get_set = { key = goods:cloth } }
 	scope:nvm_cursor = { nvm_set_has = { value = goods:tea } }
-	assert_if = { limit = { global_var:nvm_found = no } text = "NVM T92a parent A reads set: expected found" }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM T92a parent A reads set: expected found" }
 	scope:nvm_sp_b = { nvm_get_set = { key = goods:silk } }
 	scope:nvm_cursor = { nvm_set_has = { value = goods:tea } }
-	assert_if = { limit = { global_var:nvm_found = no } text = "NVM T92b parent B reads set: expected found" }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM T92b parent B reads set: expected found" }
 
 	# Delete shared set, both parents should be cleaned
 	scope:nvm_shared_set = { nvm_delete_map = yes }
 	scope:nvm_sp_a = { nvm_has_list = { key = goods:cloth } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T92c parent A cleaned: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T92c parent A cleaned: expected not found" }
 	scope:nvm_sp_b = { nvm_has_list = { key = goods:silk } }
-	assert_if = { limit = { global_var:nvm_found = yes } text = "NVM T92d parent B cleaned: expected not found" }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T92d parent B cleaned: expected not found" }
 
 	scope:nvm_sp_a = { nvm_delete_map = yes }
 	scope:nvm_sp_b = { nvm_delete_map = yes }
@@ -899,18 +899,18 @@ nvm_run_tests_impl = {
 			}
 		}
 		global_var:nvm_dead_char_persist = {
-			set_global_variable = { name = nvm_result value = "variable_map(nvm_char_test|goods:wheat)" }
+			set_local_variable = { name = nvm_result value = "variable_map(nvm_char_test|goods:wheat)" }
 		}
-		assert_if = { limit = { NOT = { global_var:nvm_result = 42 } } text = "NVM T100b dead char months later read: expected 42" }
+		assert_if = { limit = { NOT = { local_var:nvm_result = 42 } } text = "NVM T100b dead char months later read: expected 42" }
 		set_local_variable = { name = r value = global_var:nvm_dead_char_persist.var:nvm_char_flag }
 		assert_if = { limit = { NOT = { local_var:r = 777 } } text = "NVM T100c dead char months later var: expected 777" }
 	} else = {
-		error_log = "NVM T100 no prior dead char (first run, skip)"
+		debug_log = "NVM T100 no prior dead char (first run, skip)"
 	}
 
 	# T98: create character, write data, kill, read back
 	random_country = {
-		limit = { is_player = no }
+		limit = { is_ai = yes }
 		create_character = { save_scope_as = nvm_test_char }
 	}
 	if = {
@@ -934,9 +934,9 @@ nvm_run_tests_impl = {
 		}
 	}
 	scope:nvm_test_char = {
-		set_global_variable = { name = nvm_result value = "variable_map(nvm_char_test|goods:wheat)" }
+		set_local_variable = { name = nvm_result value = "variable_map(nvm_char_test|goods:wheat)" }
 	}
-	assert_if = { limit = { NOT = { global_var:nvm_result = 42 } } text = "NVM T98b dead char map read: expected 42" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 42 } } text = "NVM T98b dead char map read: expected 42" }
 
 	# Read regular variable after death
 	set_local_variable = { name = r value = scope:nvm_test_char.var:nvm_char_flag }
@@ -977,9 +977,9 @@ nvm_run_tests_impl = {
 		}
 	}
 	scope:nvm_flag_node = {
-		set_global_variable = { name = nvm_result value = "variable_map(nvm_flag_map|flag:nvm_test_alpha)" }
+		set_local_variable = { name = nvm_result value = "variable_map(nvm_flag_map|flag:nvm_test_alpha)" }
 	}
-	assert_if = { limit = { NOT = { global_var:nvm_result = 50 } } text = "NVM T93b flag scoped map read: expected 50" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 50 } } text = "NVM T93b flag scoped map read: expected 50" }
 
 	# T94: flag as global variable map key
 	set_local_variable = { name = v value = 75 }
@@ -1008,14 +1008,14 @@ nvm_run_tests_impl = {
 		text = "NVM T96a flag in list: expected found"
 	}
 	# Iterate and identity-compare
-	set_global_variable = { name = nvm_found value = no }
+	set_local_variable = { name = nvm_found value = no }
 	every_in_global_list = {
 		variable = nvm_flag_list
 		if = { limit = { this = flag:nvm_test_delta }
-			set_global_variable = { name = nvm_found value = yes }
+			set_local_variable = { name = nvm_found value = yes }
 		}
 	}
-	assert_if = { limit = { global_var:nvm_found = no } text = "NVM T96b flag list iterate: expected found" }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM T96b flag list iterate: expected found" }
 
 	# T97: flag stored as variable, read back with compare
 	scope:nvm_flag_node = {
@@ -1032,13 +1032,186 @@ nvm_run_tests_impl = {
 	clear_global_variable_list = nvm_flag_list
 
 	# ═══════════════════════════════════════════════════════════════════════
+	# TYPE TAGGING (OOP)
+	# ═══════════════════════════════════════════════════════════════════════
+
+	# T110: set_type and is_type
+	nvm_new_map = yes
+	scope:nvm_map = { save_scope_as = nvm_typed }
+	scope:nvm_typed = { nvm_set_type = { type = flag:nvm_test_horse } }
+	scope:nvm_typed = { nvm_is_type = { type = flag:nvm_test_horse } }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM T110 is_type: expected found" }
+
+	# T111: is_type rejects wrong type
+	scope:nvm_typed = { nvm_is_type = { type = flag:nvm_test_jockey } }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T111 wrong type: expected not found" }
+
+	# T112: get_type retrieves the type scope
+	scope:nvm_typed = { nvm_get_type = yes }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM T112a get_type: expected found" }
+	scope:nvm_scope = {
+		assert_if = { limit = { NOT = { this = flag:nvm_test_horse } } text = "NVM T112b get_type identity: expected horse" }
+	}
+
+	# T113: overwrite type
+	scope:nvm_typed = { nvm_set_type = { type = flag:nvm_test_jockey } }
+	scope:nvm_typed = { nvm_is_type = { type = flag:nvm_test_jockey } }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM T113 overwrite type: expected found" }
+	scope:nvm_typed = { nvm_is_type = { type = flag:nvm_test_horse } }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T113b old type gone: expected not found" }
+
+	# T114: get_type on untyped node
+	nvm_new_map = yes
+	scope:nvm_map = { save_scope_as = nvm_untyped }
+	scope:nvm_untyped = { nvm_get_type = yes }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T114 untyped: expected not found" }
+
+	# T115: delete_tree clears type (recycled node is clean)
+	scope:nvm_typed = { nvm_delete_tree = yes }
+	scope:nvm_untyped = { nvm_delete_tree = yes }
+	nvm_new_map = yes
+	scope:nvm_map = { nvm_get_type = yes }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM T115 recycled clean type: expected not found" }
+	scope:nvm_map = { nvm_delete_map = yes }
+
+	# T116: type coexists with values, scopes, children
+	nvm_new_map = yes
+	scope:nvm_map = { save_scope_as = nvm_typed }
+	scope:nvm_typed = { nvm_set_type = { type = flag:nvm_test_horse } }
+	set_local_variable = { name = v value = 10 }
+	scope:nvm_typed = { nvm_set_value = { key = goods:wheat value = local_var:v } }
+	scope:nvm_typed = { nvm_set_scope = { key = goods:iron value = scope:nvm_test_capital } }
+	scope:nvm_typed = { nvm_is_type = { type = flag:nvm_test_horse } }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM T116a type survives data: expected found" }
+	scope:nvm_typed = { nvm_get_value = { key = goods:wheat } }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 10 } } text = "NVM T116b value survives type: expected 10" }
+	scope:nvm_typed = { nvm_delete_tree = yes }
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# SAVE_TEMPORARY_SCOPE_AS ISOLATION TESTS
+	# ═══════════════════════════════════════════════════════════════════════
+	# The original failure of save_temporary_scope_as was observed alongside
+	# another issue. These tests isolate the behavior to determine whether
+	# temporary scopes actually break variable map operations, or whether
+	# the original failure had a different root cause.
+	#
+	# FLAG: If T120-T126 all pass, save_temporary_scope_as is viable for
+	# NVM operations. This would enable parallel-safe execution since
+	# temporary scopes are execution-context-local (not global).
+
+	# T120: basic write via save_temporary_scope_as
+	nvm_new_map = yes
+	scope:nvm_map = { save_temporary_scope_as = nvm_tmp_node }
+	set_local_variable = { name = v value = 42 }
+	scope:nvm_tmp_node = { nvm_set_value = { key = goods:wheat value = local_var:v } }
+	scope:nvm_tmp_node = { nvm_get_value = { key = goods:wheat } }
+	if = {
+		limit = { local_var:nvm_result = 42 }
+		debug_log = "NVM T120 PASS: temp scope basic write works"
+	} else = {
+		debug_log = "NVM T120 FAIL: temp scope basic write returned [SCOPE.GetGlobalVariable('nvm_result').GetValue|2] (expected 42)"
+	}
+
+	# T121: add_to_variable_map directly via temp scope (bypasses NVM API)
+	scope:nvm_tmp_node = {
+		add_to_variable_map = { name = nvm_values key = goods:iron value = 77 }
+	}
+	scope:nvm_tmp_node = {
+		if = {
+			limit = { is_key_in_variable_map = { name = nvm_values target = goods:iron } }
+			debug_log = "NVM T121 PASS: temp scope raw add_to_variable_map works"
+		} else = {
+			debug_log = "NVM T121 FAIL: temp scope raw add_to_variable_map key not found"
+		}
+	}
+
+	# T122: re-entry after leaving and returning to temp scope
+	# This is the specific pattern suspected to fail: save temp, leave
+	# scope, re-enter, write to variable map
+	set_local_variable = { name = v value = 99 }
+	scope:nvm_tmp_node = { nvm_set_value = { key = goods:silk value = local_var:v } }
+	# Now do something unrelated to "leave" the scope context
+	set_local_variable = { name = dummy value = 0 }
+	# Re-enter and write
+	set_local_variable = { name = v value = 55 }
+	scope:nvm_tmp_node = { nvm_set_value = { key = goods:cloth value = local_var:v } }
+	scope:nvm_tmp_node = { nvm_get_value = { key = goods:cloth } }
+	if = {
+		limit = { local_var:nvm_result = 55 }
+		debug_log = "NVM T122 PASS: temp scope re-entry write works"
+	} else = {
+		debug_log = "NVM T122 FAIL: temp scope re-entry write returned [SCOPE.GetGlobalVariable('nvm_result').GetValue|2] (expected 55)"
+	}
+
+	# T123: navigate child via temp scope parent
+	# get_or_set_map internally uses save_scope_as for nvm_op_parent.
+	# This tests if the PARENT being a temp scope causes issues.
+	scope:nvm_tmp_node = { nvm_get_or_set_map = { key = goods:wine } }
+	set_local_variable = { name = v value = 33 }
+	scope:nvm_cursor = { nvm_set_value = { key = goods:tea value = local_var:v } }
+	scope:nvm_tmp_node = { nvm_get_map = { key = goods:wine } }
+	if = {
+		limit = { local_var:nvm_found = yes }
+		scope:nvm_cursor = { nvm_get_value = { key = goods:tea } }
+		if = {
+			limit = { local_var:nvm_result = 33 }
+			debug_log = "NVM T123 PASS: temp scope as parent for child navigation works"
+		} else = {
+			debug_log = "NVM T123 FAIL: temp scope child value wrong (expected 33)"
+		}
+	} else = {
+		debug_log = "NVM T123 FAIL: temp scope child not found after get_or_set_map"
+	}
+
+	# T124: save child as temp scope, write to it
+	scope:nvm_tmp_node = { nvm_get_map = { key = goods:wine } }
+	scope:nvm_cursor = { save_temporary_scope_as = nvm_tmp_child }
+	set_local_variable = { name = v value = 88 }
+	scope:nvm_tmp_child = { nvm_set_value = { key = goods:paper value = local_var:v } }
+	scope:nvm_tmp_child = { nvm_get_value = { key = goods:paper } }
+	if = {
+		limit = { local_var:nvm_result = 88 }
+		debug_log = "NVM T124 PASS: temp scope child write works"
+	} else = {
+		debug_log = "NVM T124 FAIL: temp scope child write returned [SCOPE.GetGlobalVariable('nvm_result').GetValue|2] (expected 88)"
+	}
+
+	# T125: control test with save_scope_as on the same node (must pass)
+	scope:nvm_map = { save_scope_as = nvm_perm_node }
+	set_local_variable = { name = v value = 42 }
+	scope:nvm_perm_node = { nvm_set_value = { key = goods:fur value = local_var:v } }
+	scope:nvm_perm_node = { nvm_get_value = { key = goods:fur } }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 42 } } text = "NVM T125 control (save_scope_as): expected 42" }
+	debug_log = "NVM T125 PASS: control save_scope_as works (as expected)"
+
+	# T126: scope reference stored via temp scope
+	scope:nvm_tmp_node = { nvm_set_scope = { key = goods:fur value = scope:nvm_test_capital } }
+	scope:nvm_tmp_node = { nvm_get_scope = { key = goods:fur } }
+	if = {
+		limit = { local_var:nvm_found = yes }
+		scope:nvm_scope = {
+			if = {
+				limit = { this = scope:nvm_test_capital }
+				debug_log = "NVM T126 PASS: temp scope set/get scope ref works"
+			} else = {
+				debug_log = "NVM T126 FAIL: temp scope ref identity mismatch"
+			}
+		}
+	} else = {
+		debug_log = "NVM T126 FAIL: temp scope set/get scope ref not found"
+	}
+
+	# Cleanup
+	scope:nvm_tmp_node = { nvm_delete_tree = yes }
+
+	# ═══════════════════════════════════════════════════════════════════════
 	# INTEGRITY
 	# ═══════════════════════════════════════════════════════════════════════
 
 	# T27: original test root survived everything (values were cleared in T10)
 	scope:nvm_test_root = { nvm_get_map = { key = scope:nvm_test_country } }
 	scope:nvm_cursor = { nvm_get_value = { key = goods:silk } }
-	assert_if = { limit = { NOT = { global_var:nvm_result = 55 } } text = "NVM T27 root child intact: expected 55" }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 55 } } text = "NVM T27 root child intact: expected 55" }
 
-	error_log = "NVM tests complete"
+	debug_log = "NVM tests complete"
 }

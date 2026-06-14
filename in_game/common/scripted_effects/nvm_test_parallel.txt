@@ -1,0 +1,203 @@
+﻿# ═══════════════════════════════════════════════════════════════════════════════
+# PARALLEL SAFETY TESTS
+# ═══════════════════════════════════════════════════════════════════════════════
+# Tests whether NVM operations are safe under EU5's multithreaded event
+# dispatch. Each event self-initializes and stores results on the country.
+#
+# Structure:
+#   Phase 1 (game start, sequential): create shared global tree
+#   Phase 2 (monthly_country_pulse, parallel): events run per-country
+#   Phase 3 (weather_monthly_pulse, sequential): verify results
+#
+# Grep for NVM_PAR in logs/error.log to filter output.
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PHASE 1: CREATE SHARED DATA
+# ═══════════════════════════════════════════════════════════════════════════════
+
+nvm_parallel_setup_impl = {
+	debug_log = "NVM_PAR setup start"
+
+	nvm_new_map = yes
+	scope:nvm_map = { save_scope_as = nvm_par_shared_root }
+	set_global_variable = { name = nvm_par_shared value = scope:nvm_par_shared_root }
+
+	set_local_variable = { name = v value = 42 }
+	scope:nvm_par_shared_root = { nvm_set_value = { key = goods:wheat value = local_var:v } }
+
+	scope:nvm_par_shared_root = { nvm_get_or_set_map = { key = goods:silk } }
+	set_local_variable = { name = v value = 99 }
+	scope:nvm_cursor = { nvm_set_value = { key = goods:cloth value = local_var:v } }
+
+	debug_log = "NVM_PAR setup complete"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PHASE 3: VERIFY RESULTS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+nvm_parallel_verify_impl = {
+	debug_log = "NVM_PAR verify start"
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# TEST A: READ-ONLY
+	# ═══════════════════════════════════════════════════════════════════════
+	set_local_variable = { name = a_countries value = 0 }
+	set_local_variable = { name = a_fail_shared value = 0 }
+	set_local_variable = { name = a_fail_child value = 0 }
+
+	random_country = {
+		limit = { is_real_country = yes }
+		every_country = {
+			limit = { is_real_country = yes has_variable = nvm_par_a_done }
+			change_local_variable = { name = a_countries add = 1 }
+			change_local_variable = { name = a_fail_shared add = var:nvm_par_a_fail_shared }
+			change_local_variable = { name = a_fail_child add = var:nvm_par_a_fail_child }
+		}
+	}
+
+	debug_log = "NVM_PAR TEST A (read-only, 50 iter): countries=[SCOPE.GetLocalVariable('a_countries').GetValue|0] RACE FAILURES: shared=[SCOPE.GetLocalVariable('a_fail_shared').GetValue|0] child=[SCOPE.GetLocalVariable('a_fail_child').GetValue|0]"
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# TEST B: WRITE-ONLY
+	# ═══════════════════════════════════════════════════════════════════════
+	set_local_variable = { name = b_countries value = 0 }
+	set_local_variable = { name = b_pass value = 0 }
+	set_local_variable = { name = b_fail value = 0 }
+	set_local_variable = { name = b_type_pass value = 0 }
+
+	random_country = {
+		limit = { is_real_country = yes }
+		every_country = {
+			limit = { is_real_country = yes has_variable = nvm_par_b_done }
+			change_local_variable = { name = b_countries add = 1 }
+
+			var:nvm_par_b_node = { nvm_get_value = { key = goods:wheat } }
+			if = {
+				limit = { local_var:nvm_result = var:nvm_par_b_sentinel }
+				change_local_variable = { name = b_pass add = 1 }
+			} else = {
+				change_local_variable = { name = b_fail add = 1 }
+			}
+
+			var:nvm_par_b_node = { nvm_is_type = { type = flag:nvm_par_test_type } }
+			if = {
+				limit = { local_var:nvm_found = yes }
+				change_local_variable = { name = b_type_pass add = 1 }
+			}
+		}
+	}
+
+	debug_log = "NVM_PAR TEST B (write-only, 10 alloc): countries=[SCOPE.GetLocalVariable('b_countries').GetValue|0] pass=[SCOPE.GetLocalVariable('b_pass').GetValue|0] RACE FAILURES: value=[SCOPE.GetLocalVariable('b_fail').GetValue|0] type=[SCOPE.GetLocalVariable('b_type_pass').GetValue|0]"
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# TEST C: READ-WRITE
+	# ═══════════════════════════════════════════════════════════════════════
+	set_local_variable = { name = c_countries value = 0 }
+	set_local_variable = { name = c_rw_fail value = 0 }
+	set_local_variable = { name = c_child_fail value = 0 }
+
+	random_country = {
+		limit = { is_real_country = yes }
+		every_country = {
+			limit = { is_real_country = yes has_variable = nvm_par_c_done }
+			change_local_variable = { name = c_countries add = 1 }
+			change_local_variable = { name = c_rw_fail add = var:nvm_par_c_rw_fail }
+			change_local_variable = { name = c_child_fail add = var:nvm_par_c_child_fail }
+		}
+	}
+
+	debug_log = "NVM_PAR TEST C (read-write, 50 iter): countries=[SCOPE.GetLocalVariable('c_countries').GetValue|0] RACE FAILURES: rw=[SCOPE.GetLocalVariable('c_rw_fail').GetValue|0] child=[SCOPE.GetLocalVariable('c_child_fail').GetValue|0]"
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# CLEANUP
+	# ═══════════════════════════════════════════════════════════════════════
+	random_country = {
+		limit = { is_real_country = yes }
+		every_country = {
+			limit = { is_real_country = yes }
+			if = { limit = { has_variable = nvm_par_b_node }
+				var:nvm_par_b_node = { nvm_delete_map = yes }
+			}
+			if = { limit = { has_variable = nvm_par_c_node }
+				var:nvm_par_c_node = { nvm_delete_map = yes }
+			}
+			if = { limit = { has_variable = nvm_par_a_done } remove_variable = nvm_par_a_done }
+			if = { limit = { has_variable = nvm_par_a_fail_shared } remove_variable = nvm_par_a_fail_shared }
+			if = { limit = { has_variable = nvm_par_a_fail_child } remove_variable = nvm_par_a_fail_child }
+			if = { limit = { has_variable = nvm_par_b_done } remove_variable = nvm_par_b_done }
+			if = { limit = { has_variable = nvm_par_b_node } remove_variable = nvm_par_b_node }
+			if = { limit = { has_variable = nvm_par_b_sentinel } remove_variable = nvm_par_b_sentinel }
+			if = { limit = { has_variable = nvm_par_c_done } remove_variable = nvm_par_c_done }
+			if = { limit = { has_variable = nvm_par_c_node } remove_variable = nvm_par_c_node }
+			if = { limit = { has_variable = nvm_par_c_rw_fail } remove_variable = nvm_par_c_rw_fail }
+			if = { limit = { has_variable = nvm_par_c_child_fail } remove_variable = nvm_par_c_child_fail }
+		}
+	}
+
+	global_var:nvm_par_shared = { nvm_delete_tree = yes }
+	remove_global_variable = nvm_par_shared
+
+	debug_log = "NVM_PAR verify complete"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# EVERY_COUNTRY CLOBBERING TEST (sequential baseline)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+nvm_every_country_clobber_test = {
+	nvm_init_pool = yes
+	debug_log = "NVM_PAR every_country clobber test start"
+
+	nvm_new_map = yes
+	scope:nvm_map = { save_scope_as = nvm_clobber_shared }
+	set_local_variable = { name = v value = 42 }
+	scope:nvm_clobber_shared = { nvm_set_value = { key = goods:wheat value = local_var:v } }
+
+	set_local_variable = { name = idx value = 1 }
+	random_country = {
+		limit = { is_real_country = yes }
+		every_country = {
+			limit = { is_real_country = yes }
+			nvm_new_map = yes
+			set_variable = { name = nvm_clobber_node value = scope:nvm_map }
+			scope:nvm_map = { nvm_set_value = { key = goods:wheat value = local_var:idx } }
+			change_local_variable = { name = idx add = 1 }
+		}
+	}
+
+	set_local_variable = { name = correct_count value = 0 }
+	set_local_variable = { name = total value = 0 }
+
+	random_country = {
+		limit = { is_real_country = yes }
+		every_country = {
+			limit = { is_real_country = yes has_variable = nvm_clobber_node }
+			change_local_variable = { name = total add = 1 }
+
+			scope:nvm_clobber_shared = { nvm_get_value = { key = goods:wheat } }
+			set_local_variable = { name = shared_result value = local_var:nvm_result }
+
+			var:nvm_clobber_node = { nvm_get_value = { key = goods:wheat } }
+
+			if = {
+				limit = { local_var:shared_result = 42 }
+				change_local_variable = { name = correct_count add = 1 }
+			}
+		}
+	}
+
+	debug_log = "NVM_PAR clobber test: correct pattern=[SCOPE.GetLocalVariable('correct_count').GetValue|0]/[SCOPE.GetLocalVariable('total').GetValue|0]"
+
+	random_country = {
+		limit = { is_real_country = yes }
+		every_country = {
+			limit = { is_real_country = yes has_variable = nvm_clobber_node }
+			var:nvm_clobber_node = { nvm_delete_map = yes }
+			remove_variable = nvm_clobber_node
+		}
+	}
+	scope:nvm_clobber_shared = { nvm_delete_tree = yes }
+
+	debug_log = "NVM_PAR every_country clobber test complete"
+}

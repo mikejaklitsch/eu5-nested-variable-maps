@@ -1,0 +1,114 @@
+﻿namespace = nvm_parallel_test
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PARALLEL SAFETY TEST EVENTS
+# ═══════════════════════════════════════════════════════════════════════════════
+# Fire per-country in parallel threads via events = { } dispatch.
+# No trigger conditions. If the event fires at all, the dispatch works.
+
+# Test A: READ-ONLY PARALLEL
+nvm_parallel_test.1 = {
+	type = country_event
+	hidden = yes
+	title = "nvm_parallel_test.1"
+
+	immediate = {
+		debug_log = "NVM_PAR event.1 fired"
+		set_local_variable = { name = fail_shared value = 0 }
+		set_local_variable = { name = fail_child value = 0 }
+
+		while = {
+			count = 50
+
+			global_var:nvm_par_shared = { nvm_get_value = { key = goods:wheat } }
+			if = {
+				limit = { NOT = { local_var:nvm_result = 42 } }
+				change_local_variable = { name = fail_shared add = 1 }
+			}
+
+			global_var:nvm_par_shared = { nvm_get_map = { key = goods:silk } }
+			if = {
+				limit = { local_var:nvm_found = yes }
+				scope:nvm_cursor = { nvm_get_value = { key = goods:cloth } }
+				if = {
+					limit = { NOT = { local_var:nvm_result = 99 } }
+					change_local_variable = { name = fail_child add = 1 }
+				}
+			} else = {
+				change_local_variable = { name = fail_child add = 1 }
+			}
+		}
+
+		set_variable = { name = nvm_par_a_fail_shared value = local_var:fail_shared }
+		set_variable = { name = nvm_par_a_fail_child value = local_var:fail_child }
+		set_variable = { name = nvm_par_a_done value = 1 }
+	}
+}
+
+# Test B: WRITE-ONLY PARALLEL
+nvm_parallel_test.2 = {
+	type = country_event
+	hidden = yes
+	title = "nvm_parallel_test.2"
+
+	immediate = {
+		set_local_variable = { name = i value = 0 }
+
+		while = {
+			count = 10
+			nvm_new_map = yes
+			scope:nvm_map = { nvm_set_value = { key = goods:wheat value = local_var:i } }
+			scope:nvm_map = { nvm_set_type = { type = flag:nvm_par_test_type } }
+			set_variable = { name = nvm_par_b_node value = scope:nvm_map }
+			set_variable = { name = nvm_par_b_sentinel value = local_var:i }
+			change_local_variable = { name = i add = 1 }
+		}
+
+		set_variable = { name = nvm_par_b_done value = 1 }
+	}
+}
+
+# Test C: READ-WRITE PARALLEL
+nvm_parallel_test.3 = {
+	type = country_event
+	hidden = yes
+	title = "nvm_parallel_test.3"
+
+	immediate = {
+		nvm_new_map = yes
+		set_variable = { name = nvm_par_c_node value = scope:nvm_map }
+
+		set_local_variable = { name = rw_fail value = 0 }
+		set_local_variable = { name = child_fail value = 0 }
+
+		while = {
+			count = 50
+
+			global_var:nvm_par_shared = { nvm_get_value = { key = goods:wheat } }
+			set_local_variable = { name = shared_val value = local_var:nvm_result }
+
+			var:nvm_par_c_node = { nvm_set_value = { key = goods:wheat value = local_var:shared_val } }
+			var:nvm_par_c_node = { nvm_get_value = { key = goods:wheat } }
+			if = {
+				limit = { NOT = { local_var:nvm_result = local_var:shared_val } }
+				change_local_variable = { name = rw_fail add = 1 }
+			}
+
+			global_var:nvm_par_shared = { nvm_get_map = { key = goods:silk } }
+			if = {
+				limit = { local_var:nvm_found = yes }
+				scope:nvm_cursor = { nvm_get_value = { key = goods:cloth } }
+				if = {
+					limit = { NOT = { local_var:nvm_result = 99 } }
+					change_local_variable = { name = child_fail add = 1 }
+				}
+			} else = {
+				change_local_variable = { name = child_fail add = 1 }
+			}
+		}
+
+		set_variable = { name = nvm_par_c_rw_fail value = local_var:rw_fail }
+		set_variable = { name = nvm_par_c_child_fail value = local_var:child_fail }
+		set_variable = { name = nvm_par_c_done value = 1 }
+	}
+}

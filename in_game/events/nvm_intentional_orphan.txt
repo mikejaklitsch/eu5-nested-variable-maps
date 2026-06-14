@@ -1,0 +1,50 @@
+﻿# Intentionally orphaned event to satisfy the engine's static analyzer.
+# Flag scopes used as variable map keys and variables used only in
+# localization expressions are not detectable by static analysis.
+# This event is never triggered.
+
+namespace = nvm_intentional_orphan
+
+nvm_intentional_orphan.1 = {
+	type = country_event
+	title = "nvm_intentional_orphan.1"
+	desc = "nvm_intentional_orphan.1"
+
+	orphan = yes
+
+	trigger = { always = no }
+
+	immediate = {
+		# ── flags used as variable map keys (tutorial) ──
+		set_variable = { name = nvm_orphan_ref value = flag:nvm_tutorial_speed }
+		set_variable = { name = nvm_orphan_ref value = flag:nvm_tutorial_stamina }
+		set_variable = { name = nvm_orphan_ref value = flag:nvm_tutorial_endurance }
+		set_variable = { name = nvm_orphan_ref value = flag:nvm_tutorial_wins }
+		set_variable = { name = nvm_orphan_ref value = flag:nvm_tutorial_losses }
+		set_variable = { name = nvm_orphan_ref value = flag:nvm_tutorial_sire }
+		set_variable = { name = nvm_orphan_ref value = flag:nvm_tutorial_dam }
+		set_variable = { name = nvm_orphan_ref value = flag:nvm_tutorial_maintenance }
+		set_variable = { name = nvm_orphan_ref value = flag:nvm_tutorial_race_history }
+		set_variable = { name = nvm_orphan_ref value = flag:nvm_tutorial_horse_1 }
+		set_variable = { name = nvm_orphan_ref value = flag:nvm_tutorial_horse_2 }
+		set_variable = { name = nvm_orphan_ref value = flag:nvm_tutorial_jockey }
+		set_variable = { name = nvm_orphan_ref value = flag:nvm_tutorial_mount }
+		set_variable = { name = nvm_orphan_ref value = flag:nvm_tutorial_skill }
+		set_variable = { name = nvm_orphan_ref value = flag:nvm_tutorial_experience }
+		set_variable = { name = nvm_orphan_ref value = flag:nvm_tutorial_total_wins }
+		set_variable = { name = nvm_orphan_ref value = flag:nvm_tutorial_total_losses }
+		set_variable = { name = nvm_orphan_ref value = flag:nvm_tutorial_stable }
+		set_variable = { name = nvm_orphan_ref value = flag:nvm_tutorial_horse }
+		change_variable = { name = nvm_orphan_ref multiply = 1 }
+
+		# ── variables used in localization expressions (error_log inline reads) ──
+		set_local_variable = { name = dummy value = 0 }
+		change_local_variable = { name = dummy multiply = 1 }
+		set_local_variable = { name = test_val value = 0 }
+		change_local_variable = { name = test_val multiply = 1 }
+		set_local_variable = { name = pool_before value = 0 }
+		change_local_variable = { name = pool_before multiply = 1 }
+	}
+
+	option = { name = "OK" }
+}

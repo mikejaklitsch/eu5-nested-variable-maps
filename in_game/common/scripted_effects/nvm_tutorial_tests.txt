@@ -1,0 +1,127 @@
+﻿# ═══════════════════════════════════════════════════════════════════════════════
+# HORSE RACING TUTORIAL: VALIDATION TESTS
+# ═══════════════════════════════════════════════════════════════════════════════
+# Runs after nvm_tutorial_initialize to verify the OOP data model works.
+# Grep for NVM_TUT in logs/error.log to filter output.
+
+nvm_tutorial_run_tests = {
+	debug_log = "NVM_TUT === running tests ==="
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# TYPE CHECKS
+	# ═══════════════════════════════════════════════════════════════════════
+
+	c:FRA = {
+		var:nvm_tutorial_stable = { nvm_is_type = { type = flag:nvm_tutorial_stable } }
+	}
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM_TUT T1 stable type: expected nvm_tutorial_stable" }
+
+	c:FRA = {
+		var:nvm_tutorial_stable = { nvm_get_map = { key = flag:nvm_tutorial_horse_1 } }
+	}
+	scope:nvm_cursor = { nvm_is_type = { type = flag:nvm_tutorial_horse } }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM_TUT T2 horse type: expected nvm_tutorial_horse" }
+
+	scope:nvm_cursor = { nvm_is_type = { type = flag:nvm_tutorial_jockey } }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM_TUT T3 wrong type: expected not found" }
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# STAT READS
+	# ═══════════════════════════════════════════════════════════════════════
+
+	c:FRA = {
+		var:nvm_tutorial_stable = { nvm_get_map = { key = flag:nvm_tutorial_horse_1 } }
+	}
+	scope:nvm_cursor = { save_scope_as = nvm_tutorial_t_horse }
+	scope:nvm_tutorial_t_horse = { nvm_get_value = { key = flag:nvm_tutorial_speed } }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 9 } } text = "NVM_TUT T4 speed after training: expected 9" }
+
+	scope:nvm_tutorial_t_horse = { nvm_get_value = { key = flag:nvm_tutorial_stamina } }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 6 } } text = "NVM_TUT T5 stamina: expected 6" }
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# JOCKEY LINK
+	# ═══════════════════════════════════════════════════════════════════════
+
+	scope:nvm_tutorial_t_horse = { nvm_get_scope = { key = flag:nvm_tutorial_jockey } }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM_TUT T6 jockey exists: expected found" }
+
+	scope:nvm_scope = { nvm_is_type = { type = flag:nvm_tutorial_jockey } }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM_TUT T7 jockey type: expected nvm_tutorial_jockey" }
+
+	scope:nvm_scope = { save_scope_as = nvm_tutorial_t_jockey }
+	scope:nvm_tutorial_t_jockey = { nvm_get_scope = { key = flag:nvm_tutorial_mount } }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM_TUT T8a mount exists: expected found" }
+	scope:nvm_scope = {
+		assert_if = { limit = { NOT = { this = scope:nvm_tutorial_t_horse } } text = "NVM_TUT T8b mount identity: expected horse 1" }
+	}
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# RACE RESULTS
+	# ═══════════════════════════════════════════════════════════════════════
+
+	c:ENG = {
+		var:nvm_tutorial_stable = { nvm_get_map = { key = flag:nvm_tutorial_horse_1 } }
+	}
+	scope:nvm_cursor = { nvm_get_value = { key = flag:nvm_tutorial_wins } }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 1 } } text = "NVM_TUT T9 eng wins: expected 1" }
+
+	scope:nvm_tutorial_t_horse = { nvm_get_value = { key = flag:nvm_tutorial_losses } }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 1 } } text = "NVM_TUT T10 fra losses: expected 1" }
+
+	scope:nvm_tutorial_t_horse = { nvm_get_list = { key = flag:nvm_tutorial_race_history } }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM_TUT T11a race history exists: expected found" }
+	scope:nvm_cursor = {
+		assert_if = { limit = { NOT = { var:nvm_list_size = 1 } } text = "NVM_TUT T11b race history size: expected 1" }
+	}
+
+	c:ENG = {
+		var:nvm_tutorial_stable = { nvm_get_value = { key = flag:nvm_tutorial_total_wins } }
+	}
+	assert_if = { limit = { NOT = { local_var:nvm_result = 1 } } text = "NVM_TUT T12 eng stable wins: expected 1" }
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# LINEAGE
+	# ═══════════════════════════════════════════════════════════════════════
+
+	c:FRA = {
+		var:nvm_tutorial_stable = { nvm_get_map = { key = flag:nvm_tutorial_horse_2 } }
+	}
+	scope:nvm_cursor = { nvm_get_scope = { key = flag:nvm_tutorial_sire } }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM_TUT T13a sire exists: expected found" }
+	scope:nvm_scope = {
+		assert_if = { limit = { NOT = { this = scope:nvm_tutorial_t_horse } } text = "NVM_TUT T13b sire identity: expected horse 1" }
+	}
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# MAINTENANCE COSTS
+	# ═══════════════════════════════════════════════════════════════════════
+
+	scope:nvm_tutorial_t_horse = { nvm_get_map = { key = flag:nvm_tutorial_maintenance } }
+	assert_if = { limit = { local_var:nvm_found = no } text = "NVM_TUT T14a maintenance exists: expected found" }
+	scope:nvm_cursor = { nvm_get_value = { key = goods:wheat } }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 2 } } text = "NVM_TUT T14b grain cost: expected 2" }
+	scope:nvm_cursor = { nvm_get_value = { key = goods:wine } }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 1 } } text = "NVM_TUT T14c wine cost: expected 1" }
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# JOCKEY XP
+	# ═══════════════════════════════════════════════════════════════════════
+
+	c:ENG = {
+		var:nvm_tutorial_stable = { nvm_get_map = { key = flag:nvm_tutorial_horse_1 } }
+	}
+	scope:nvm_cursor = { nvm_get_scope = { key = flag:nvm_tutorial_jockey } }
+	scope:nvm_scope = { nvm_get_value = { key = flag:nvm_tutorial_experience } }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 2 } } text = "NVM_TUT T15 jockey xp: expected 2" }
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# POWER CALCULATION
+	# ═══════════════════════════════════════════════════════════════════════
+
+	# France horse 1: speed 9 + stamina 6 + endurance 5 + jockey 4 = 24
+	scope:nvm_tutorial_t_horse = { nvm_tutorial_get_power = yes }
+	assert_if = { limit = { NOT = { local_var:nvm_tutorial_power = 24 } } text = "NVM_TUT T16 fra power after train: expected 24" }
+
+	debug_log = "NVM_TUT === tests complete ==="
+}

@@ -1,0 +1,342 @@
+﻿# ═══════════════════════════════════════════════════════════════════════════════
+# ENGINE CAPABILITY PROBES
+# ═══════════════════════════════════════════════════════════════════════════════
+# Self-contained unit tests that determine what EU5 engine features are
+# available for parallel-safe NVM operations. Each test is independent
+# and reports PASS/FAIL with no dependencies on other tests.
+#
+# These tests answer specific design questions for the NVM parallel
+# safety architecture. If a test passes, the feature it probes can be
+# used in production.
+#
+# Grep for NVM_CAP in logs/error.log to filter output.
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LOCAL VARIABLE SCOPE STORAGE
+# ═══════════════════════════════════════════════════════════════════════════════
+# Question: can set_local_variable store a scope reference (event target),
+# and can you scope into local_var:x to operate on it?
+# If YES: local variables are the thread-safe return value primitive we need.
+
+nvm_cap_local_var_scope = {
+	debug_log = "NVM_CAP === local variable scope storage ==="
+
+	# Setup: create a node with known data
+	nvm_new_map = yes
+	scope:nvm_map = { save_scope_as = nvm_cap_node }
+	set_local_variable = { name = v value = 42 }
+	scope:nvm_cap_node = { nvm_set_value = { key = goods:wheat value = local_var:v } }
+
+	# C1: store scope reference in local variable
+	set_local_variable = { name = my_ref value = scope:nvm_cap_node }
+
+	# C2: scope into local_var and read
+	local_var:my_ref = { nvm_get_value = { key = goods:wheat } }
+	if = {
+		limit = { local_var:nvm_result = 42 }
+		debug_log = "NVM_CAP C2 PASS: local_var scope-into read works"
+	} else = {
+		debug_log = "NVM_CAP C2 FAIL: local_var scope-into read returned [SCOPE.GetGlobalVariable('nvm_result').GetValue|2] (expected 42)"
+	}
+
+	# C3: scope into local_var and write
+	set_local_variable = { name = v value = 99 }
+	local_var:my_ref = { nvm_set_value = { key = goods:iron value = local_var:v } }
+	local_var:my_ref = { nvm_get_value = { key = goods:iron } }
+	if = {
+		limit = { local_var:nvm_result = 99 }
+		debug_log = "NVM_CAP C3 PASS: local_var scope-into write works"
+	} else = {
+		debug_log = "NVM_CAP C3 FAIL: local_var scope-into write returned [SCOPE.GetGlobalVariable('nvm_result').GetValue|2] (expected 99)"
+	}
+
+	# C4: identity check (is the local_var pointing to the same object?)
+	local_var:my_ref = {
+		if = {
+			limit = { this = scope:nvm_cap_node }
+			debug_log = "NVM_CAP C4 PASS: local_var identity matches saved scope"
+		} else = {
+			debug_log = "NVM_CAP C4 FAIL: local_var identity does not match saved scope"
+		}
+	}
+
+	# C5: store a DIFFERENT scope and verify it updates
+	nvm_new_map = yes
+	scope:nvm_map = { save_scope_as = nvm_cap_node_2 }
+	set_local_variable = { name = v value = 77 }
+	scope:nvm_cap_node_2 = { nvm_set_value = { key = goods:silk value = local_var:v } }
+
+	set_local_variable = { name = my_ref value = scope:nvm_cap_node_2 }
+	local_var:my_ref = { nvm_get_value = { key = goods:silk } }
+	if = {
+		limit = { local_var:nvm_result = 77 }
+		debug_log = "NVM_CAP C5 PASS: local_var reassignment works"
+	} else = {
+		debug_log = "NVM_CAP C5 FAIL: local_var reassignment returned [SCOPE.GetGlobalVariable('nvm_result').GetValue|2] (expected 77)"
+	}
+
+	# C6: use local_var as value in set_variable (store on another scope)
+	scope:nvm_cap_node = { set_variable = { name = test_ref value = local_var:my_ref } }
+	scope:nvm_cap_node = {
+		var:test_ref = { nvm_get_value = { key = goods:silk } }
+	}
+	if = {
+		limit = { local_var:nvm_result = 77 }
+		debug_log = "NVM_CAP C6 PASS: local_var as set_variable value works"
+	} else = {
+		debug_log = "NVM_CAP C6 FAIL: local_var as set_variable value returned [SCOPE.GetGlobalVariable('nvm_result').GetValue|2] (expected 77)"
+	}
+
+	# Cleanup
+	scope:nvm_cap_node = { nvm_delete_tree = yes }
+	scope:nvm_cap_node_2 = { nvm_delete_tree = yes }
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LOCAL VARIABLE MAP EXPRESSION
+# ═══════════════════════════════════════════════════════════════════════════════
+# Question: can variable_map() return a scope into a local variable?
+# If YES: we can read child scope references from maps into thread-safe storage.
+
+nvm_cap_local_var_map_read = {
+	debug_log = "NVM_CAP === local variable map expression ==="
+
+	# Setup: parent with a child in nvm_children
+	nvm_new_map = yes
+	scope:nvm_map = { save_scope_as = nvm_cap_parent }
+	scope:nvm_cap_parent = { nvm_get_or_set_map = { key = goods:wheat } }
+	scope:nvm_cursor = { save_scope_as = nvm_cap_child }
+	set_local_variable = { name = v value = 55 }
+	scope:nvm_cap_child = { nvm_set_value = { key = goods:iron value = local_var:v } }
+
+	# C10: read child scope from variable_map into a local variable
+	scope:nvm_cap_parent = {
+		set_local_variable = { name = child_ref value = "variable_map(nvm_children|goods:wheat)" }
+	}
+
+	# C11: scope into that local variable and read data
+	local_var:child_ref = { nvm_get_value = { key = goods:iron } }
+	if = {
+		limit = { local_var:nvm_result = 55 }
+		debug_log = "NVM_CAP C11 PASS: variable_map into local_var scope-into works"
+	} else = {
+		debug_log = "NVM_CAP C11 FAIL: variable_map into local_var returned [SCOPE.GetGlobalVariable('nvm_result').GetValue|2] (expected 55)"
+	}
+
+	# C12: verify identity
+	local_var:child_ref = {
+		if = {
+			limit = { this = scope:nvm_cap_child }
+			debug_log = "NVM_CAP C12 PASS: variable_map local_var identity correct"
+		} else = {
+			debug_log = "NVM_CAP C12 FAIL: variable_map local_var identity mismatch"
+		}
+	}
+
+	# C13: write through the local_var reference
+	set_local_variable = { name = v value = 88 }
+	local_var:child_ref = { nvm_set_value = { key = goods:silk value = local_var:v } }
+	scope:nvm_cap_child = { nvm_get_value = { key = goods:silk } }
+	if = {
+		limit = { local_var:nvm_result = 88 }
+		debug_log = "NVM_CAP C13 PASS: write through variable_map local_var works"
+	} else = {
+		debug_log = "NVM_CAP C13 FAIL: write through variable_map local_var returned [SCOPE.GetGlobalVariable('nvm_result').GetValue|2] (expected 88)"
+	}
+
+	# Cleanup
+	scope:nvm_cap_parent = { nvm_delete_tree = yes }
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SCRIPTED EFFECT SCOPE CHAIN (PREV / ROOT)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Question: inside a scripted effect, does PREV resolve to the caller's
+# scope, and does ROOT resolve to the event/on_action root?
+# If YES: NVM operations can identify their caller for per-caller returns.
+
+# Helper that checks what PREV and ROOT are
+nvm_cap_scope_chain_check = {
+	# 'this' should be the node the effect was called on
+	if = {
+		limit = { this = scope:nvm_cap_target_node }
+		debug_log = "NVM_CAP C20a PASS: 'this' inside scripted effect is the target node"
+	} else = {
+		debug_log = "NVM_CAP C20a FAIL: 'this' inside scripted effect is NOT the target node"
+	}
+}
+
+# Helper called from a country scope block
+nvm_cap_root_check = {
+	nvm_get_value = { key = goods:wheat }
+	if = {
+		limit = { local_var:nvm_result = 42 }
+		debug_log = "NVM_CAP C22 PASS: scripted effect called from country block works on node"
+	} else = {
+		debug_log = "NVM_CAP C22 FAIL: scripted effect in country block returned [SCOPE.GetGlobalVariable('nvm_result').GetValue|2] (expected 42)"
+	}
+}
+
+nvm_cap_scope_chain = {
+	debug_log = "NVM_CAP === scripted effect scope chain ==="
+
+	# Setup
+	nvm_new_map = yes
+	scope:nvm_map = { save_scope_as = nvm_cap_target_node }
+	set_local_variable = { name = v value = 42 }
+	scope:nvm_cap_target_node = { nvm_set_value = { key = goods:wheat value = local_var:v } }
+
+	# C20: call scripted effect on a node, verify 'this'
+	scope:nvm_cap_target_node = { nvm_cap_scope_chain_check = yes }
+
+	# C21: dot-chain call, verify 'this'
+	scope:nvm_cap_target_node.nvm_cap_scope_chain_check = yes
+
+	# C22: call from inside a country block
+	random_country = {
+		limit = { is_real_country = yes }
+		save_scope_as = nvm_cap_test_country
+		scope:nvm_cap_target_node = { nvm_cap_root_check = yes }
+	}
+
+	# C23: store local_var in scripted effect, read in caller
+	# (tests whether local variables from scripted effects are visible to caller)
+	scope:nvm_cap_target_node = { nvm_get_value = { key = goods:wheat } }
+	# nvm_get_value sets local_var:nvm_result internally.
+	# But if it used set_local_variable instead, would we see it here?
+	# This test simulates that by calling a helper that sets a local var.
+	scope:nvm_cap_target_node = { nvm_cap_set_local_return = yes }
+	if = {
+		limit = { local_var:nvm_cap_returned = 999 }
+		debug_log = "NVM_CAP C23 PASS: local_var from scripted effect visible to caller"
+	} else = {
+		debug_log = "NVM_CAP C23 FAIL: local_var from scripted effect NOT visible to caller"
+	}
+
+	# C24: nested scripted effect call, local_var survival
+	# Caller -> effect A -> effect B sets local_var -> does caller see it?
+	scope:nvm_cap_target_node = { nvm_cap_nested_outer = yes }
+	if = {
+		limit = { local_var:nvm_cap_deep_val = 777 }
+		debug_log = "NVM_CAP C24 PASS: local_var from nested scripted effect visible to caller"
+	} else = {
+		debug_log = "NVM_CAP C24 FAIL: local_var from nested scripted effect NOT visible to caller"
+	}
+
+	# Cleanup
+	scope:nvm_cap_target_node = { nvm_delete_tree = yes }
+}
+
+# Helpers for C23/C24
+nvm_cap_set_local_return = {
+	set_local_variable = { name = nvm_cap_returned value = 999 }
+}
+
+nvm_cap_nested_outer = {
+	nvm_cap_nested_inner = yes
+}
+
+nvm_cap_nested_inner = {
+	set_local_variable = { name = nvm_cap_deep_val value = 777 }
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LOCAL VARIABLE AS VARIABLE MAP KEY
+# ═══════════════════════════════════════════════════════════════════════════════
+# Question: can a local variable holding a scope be used as a key in
+# variable map operations (add_to, is_key_in, remove_from)?
+# If YES: enables using local vars throughout the NVM API instead of
+# saved scopes for key parameters.
+
+nvm_cap_local_var_as_map_key = {
+	debug_log = "NVM_CAP === local variable as map key ==="
+
+	nvm_new_map = yes
+	scope:nvm_map = { save_scope_as = nvm_cap_key_node }
+
+	# C30: use local_var holding a scope as variable map key
+	set_local_variable = { name = my_key value = goods:wheat }
+	scope:nvm_cap_key_node = {
+		add_to_variable_map = { name = nvm_values key = local_var:my_key value = 42 }
+	}
+	scope:nvm_cap_key_node = {
+		if = {
+			limit = { is_key_in_variable_map = { name = nvm_values target = local_var:my_key } }
+			debug_log = "NVM_CAP C30 PASS: local_var as map key works"
+		} else = {
+			debug_log = "NVM_CAP C30 FAIL: local_var as map key not found"
+		}
+	}
+
+	# C31: read back with variable_map expression using local_var key
+	scope:nvm_cap_key_node = {
+		set_local_variable = { name = read_val value = "variable_map(nvm_values|local_var:my_key)" }
+	}
+	if = {
+		limit = { local_var:read_val = 42 }
+		debug_log = "NVM_CAP C31 PASS: variable_map read with local_var key works"
+	} else = {
+		debug_log = "NVM_CAP C31 FAIL: variable_map read with local_var key returned [SCOPE.GetLocalVariable('read_val').GetValue|2] (expected 42)"
+	}
+
+	# C32: remove with local_var key
+	scope:nvm_cap_key_node = {
+		remove_from_variable_map = { name = nvm_values key = local_var:my_key }
+	}
+	scope:nvm_cap_key_node = {
+		if = {
+			limit = { NOT = { is_key_in_variable_map = { name = nvm_values target = local_var:my_key } } }
+			debug_log = "NVM_CAP C32 PASS: remove with local_var key works"
+		} else = {
+			debug_log = "NVM_CAP C32 FAIL: remove with local_var key did not remove"
+		}
+	}
+
+	# Cleanup
+	scope:nvm_cap_key_node = { nvm_delete_map = yes }
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DEBUG_LOG VS ERROR_LOG
+# ═══════════════════════════════════════════════════════════════════════════════
+# Question: does debug_log work the same as debug_log for script logging?
+# debug_log writes to debug.log instead of error.log.
+# Tests whether it accepts the same inline data functions.
+
+nvm_cap_debug_log = {
+	debug_log = "NVM_CAP === debug_log comparison ==="
+
+	set_local_variable = { name = test_val value = 42 }
+
+	# C40: basic debug_log output (check debug.log for this line)
+	debug_log = "NVM_CAP C40 debug_log basic: this should appear in debug.log"
+
+	# C41: debug_log with inline variable read
+	debug_log = "NVM_CAP C41 debug_log variable: val=[SCOPE.GetLocalVariable('test_val').GetValue|0] (expect 42)"
+
+	# C42: matching debug_log for comparison (appears in error.log)
+	debug_log = "NVM_CAP C42 debug_log control: val=[SCOPE.GetLocalVariable('test_val').GetValue|0] (expect 42)"
+
+	debug_log = "NVM_CAP debug_log tests written. Check debug.log for C40/C41."
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DISPATCHER: runs all capability probes
+# ═══════════════════════════════════════════════════════════════════════════════
+
+nvm_run_capability_tests = {
+	nvm_init_pool = yes
+	debug_log = "NVM_CAP ========================================="
+	debug_log = "NVM_CAP ENGINE CAPABILITY PROBES START"
+	debug_log = "NVM_CAP ========================================="
+
+	nvm_cap_local_var_scope = yes
+	nvm_cap_local_var_map_read = yes
+	nvm_cap_scope_chain = yes
+	nvm_cap_local_var_as_map_key = yes
+	nvm_cap_debug_log = yes
+
+	debug_log = "NVM_CAP ========================================="
+	debug_log = "NVM_CAP ENGINE CAPABILITY PROBES COMPLETE"
+	debug_log = "NVM_CAP ========================================="
+}

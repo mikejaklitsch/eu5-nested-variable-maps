@@ -1,0 +1,86 @@
+﻿# ═══════════════════════════════════════════════════════════════════════════════
+# HORSE RACING TUTORIAL: METHODS
+# ═══════════════════════════════════════════════════════════════════════════════
+# "Methods" are scripted effects that operate on a typed node passed via scope.
+# The node IS `this` (or a saved scope). Methods read and write the node's
+# variable maps just like member functions access instance fields.
+
+nvm_tutorial_assign_jockey = {
+	nvm_set_scope = { key = flag:nvm_tutorial_jockey value = $jockey$ }
+	save_scope_as = nvm_op_parent
+	$jockey$ = {
+		nvm_set_scope = { key = flag:nvm_tutorial_mount value = scope:nvm_op_parent }
+	}
+}
+
+nvm_tutorial_set_lineage = {
+	nvm_set_scope = { key = flag:nvm_tutorial_sire value = $sire$ }
+	nvm_set_scope = { key = flag:nvm_tutorial_dam value = $dam$ }
+}
+
+nvm_tutorial_train = {
+	nvm_change_value = { key = $stat$ operation = add value = $amount$ }
+}
+
+nvm_tutorial_record_win = {
+	nvm_change_value = { key = flag:nvm_tutorial_wins operation = add value = 1 }
+	save_scope_as = nvm_op_parent
+	nvm_get_list = { key = flag:nvm_tutorial_race_history }
+	if = {
+		limit = { local_var:nvm_found = yes }
+		scope:nvm_cursor = { nvm_list_add = { value = $location$ } }
+	}
+}
+
+nvm_tutorial_record_loss = {
+	nvm_change_value = { key = flag:nvm_tutorial_losses operation = add value = 1 }
+	save_scope_as = nvm_op_parent
+	nvm_get_list = { key = flag:nvm_tutorial_race_history }
+	if = {
+		limit = { local_var:nvm_found = yes }
+		scope:nvm_cursor = { nvm_list_add = { value = $location$ } }
+	}
+}
+
+nvm_tutorial_get_power = {
+	nvm_get_value = { key = flag:nvm_tutorial_speed }
+	set_local_variable = { name = nvm_tutorial_power value = local_var:nvm_result }
+
+	nvm_get_value = { key = flag:nvm_tutorial_stamina }
+	change_local_variable = { name = nvm_tutorial_power add = { value = local_var:nvm_result } }
+
+	nvm_get_value = { key = flag:nvm_tutorial_endurance }
+	change_local_variable = { name = nvm_tutorial_power add = { value = local_var:nvm_result } }
+
+	nvm_get_scope = { key = flag:nvm_tutorial_jockey }
+	if = {
+		limit = { local_var:nvm_found = yes }
+		scope:nvm_scope = { nvm_get_value = { key = flag:nvm_tutorial_skill } }
+		change_local_variable = { name = nvm_tutorial_power add = { value = local_var:nvm_result } }
+	}
+}
+
+nvm_tutorial_add_maintenance_cost = {
+	nvm_get_map = { key = flag:nvm_tutorial_maintenance }
+	if = {
+		limit = { local_var:nvm_found = yes }
+		scope:nvm_cursor = { nvm_set_value = { key = $goods$ value = $amount$ } }
+	}
+}
+
+nvm_tutorial_stable_add_horse = {
+	$key$ = { save_scope_as = nvm_op_key }
+	save_scope_as = nvm_op_parent
+
+	if = { limit = { is_key_in_variable_map = { name = nvm_children target = scope:nvm_op_key } }
+		remove_from_variable_map = { name = nvm_children key = scope:nvm_op_key }
+	}
+	add_to_variable_map = { name = nvm_children key = scope:nvm_op_key value = $horse$ }
+	$horse$ = {
+		add_to_variable_list = { name = nvm_parents target = scope:nvm_op_parent }
+	}
+}
+
+nvm_tutorial_jockey_gain_xp = {
+	nvm_change_value = { key = flag:nvm_tutorial_experience operation = add value = $amount$ }
+}

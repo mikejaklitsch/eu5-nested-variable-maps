@@ -27,9 +27,10 @@
 # Must run before any nvm_new_map calls.
 
 nvm_init_pool = {
-	clear_global_variable_map = nvm_pool_free
-	clear_global_variable_map = nvm_pool_active
-	set_global_variable = { name = nvm_pool_size value = 0 }
+	if = {
+		limit = { NOT = { has_global_variable = nvm_pool_size } }
+		set_global_variable = { name = nvm_pool_size value = 0 }
+	}
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -41,23 +42,23 @@ nvm_init_pool = {
 #
 # Result:
 #   scope:nvm_map = the new dictionary
-#   global_var:nvm_found = yes on success
+#   local_var:nvm_found = yes on success
 #
 # Usage:
 #   nvm_new_map = yes
 #   scope:nvm_map = { save_scope_as = my_data }
 
 nvm_new_map = {
-	set_global_variable = { name = nvm_found value = no }
+	set_local_variable = { name = nvm_found value = no }
 
 	ordered_key_in_global_variable_map = {
 		variable = nvm_pool_free
 		save_scope_as = nvm_map
-		set_global_variable = { name = nvm_found value = yes }
+		set_local_variable = { name = nvm_found value = yes }
 	}
 
 	if = {
-		limit = { global_var:nvm_found = yes }
+		limit = { local_var:nvm_found = yes }
 		remove_from_global_variable_map = { name = nvm_pool_free key = scope:nvm_map }
 	} else = {
 		random_country = {
@@ -65,7 +66,7 @@ nvm_new_map = {
 		}
 		kill_character_silently = scope:nvm_map
 		change_global_variable = { name = nvm_pool_size add = 1 }
-		set_global_variable = { name = nvm_found value = yes }
+		set_local_variable = { name = nvm_found value = yes }
 	}
 
 	add_to_global_variable_map = { name = nvm_pool_active key = scope:nvm_map value = 0 }
@@ -79,5 +80,6 @@ nvm_new_map = {
 		if = { limit = { has_variable = nvm_accessed_from } remove_variable = nvm_accessed_from }
 		if = { limit = { has_variable = nvm_is_list } remove_variable = nvm_is_list }
 		if = { limit = { has_variable = nvm_list_size } remove_variable = nvm_list_size }
+		if = { limit = { has_variable = nvm_type } remove_variable = nvm_type }
 	}
 }
