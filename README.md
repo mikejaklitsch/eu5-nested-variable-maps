@@ -4,7 +4,7 @@ Nested dictionaries, ordered lists, unordered sets, and object-oriented data str
 
 Store a reference on any scope with `set_variable`. Access via dot chaining: `c:FRA.var:my_data.nvm_get_value = { key = goods:wheat }`.
 
-See [tutorial.md](tutorial.md) for a guided walkthrough building a horse racing minigame with OOP patterns.
+See [TUTORIAL.md](TUTORIAL.md) for a guided walkthrough building a horse racing minigame with OOP patterns.
 
 ---
 
