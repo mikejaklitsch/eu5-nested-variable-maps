@@ -26,9 +26,10 @@
 # Keys can be any valid game scope (goods, countries, subcontinents, etc.).
 # Invalid scope references silently return 0 on read. Writes log an error.
 #
-# SCOPE SAVE REQUIREMENT:
-#   All dictionary references must use save_scope_as (persistent).
-#   save_temporary_scope_as does NOT support variable map writes on re-entry.
+# SCOPE SAVES:
+#   Internal operations use save_temporary_scope_as to avoid polluting saves.
+#   Callers may use either save_scope_as or save_temporary_scope_as for their
+#   own dictionary references.
 #
 # PARAMETER LIMITATION:
 #   Scripted effect $parameters$ do not resolve inside quoted expressions
@@ -50,7 +51,7 @@
 #     scope:my_dict = {
 #         every_key_in_variable_map = {
 #             variable = nvm_values
-#             save_scope_as = my_key
+#             save_temporary_scope_as = my_key
 #             scope:my_dict = {
 #                 set_local_variable = { name = v value = "variable_map(nvm_values|scope:my_key)" }
 #             }
@@ -81,13 +82,12 @@
 #         local_var:nvm_found = 1 if child already existed, 0 if created new
 
 nvm_get_or_set_map = {
-	$key$ = { save_scope_as = nvm_op_key }
-	save_scope_as = nvm_op_parent
+	$key$ = { save_temporary_scope_as = nvm_op_key }
+	save_temporary_scope_as = nvm_op_parent
 	if = {
 		limit = { is_key_in_variable_map = { name = nvm_children target = scope:nvm_op_key } }
-		set_local_variable = { name = nvm_nav value = "variable_map(nvm_children|scope:nvm_op_key)" }
-		local_var:nvm_nav = {
-			save_scope_as = nvm_cursor
+		"variable_map(nvm_children|scope:nvm_op_key)" = {
+			save_temporary_scope_as = nvm_cursor
 			set_variable = { name = nvm_accessed_from value = scope:nvm_op_parent }
 		}
 		set_local_variable = { name = nvm_found value = yes }
@@ -95,7 +95,7 @@ nvm_get_or_set_map = {
 		nvm_new_map = yes
 		add_to_variable_map = { name = nvm_children key = scope:nvm_op_key value = scope:nvm_map }
 		scope:nvm_map = {
-			save_scope_as = nvm_cursor
+			save_temporary_scope_as = nvm_cursor
 			add_to_variable_list = { name = nvm_parents target = scope:nvm_op_parent }
 			set_variable = { name = nvm_accessed_from value = scope:nvm_op_parent }
 		}
@@ -113,13 +113,12 @@ nvm_get_or_set_map = {
 # Result: scope:nvm_cursor = the child. local_var:nvm_found = yes or no.
 
 nvm_get_map = {
-	$key$ = { save_scope_as = nvm_op_key }
-	save_scope_as = nvm_op_parent
+	$key$ = { save_temporary_scope_as = nvm_op_key }
+	save_temporary_scope_as = nvm_op_parent
 	if = {
 		limit = { is_key_in_variable_map = { name = nvm_children target = scope:nvm_op_key } }
-		set_local_variable = { name = nvm_nav value = "variable_map(nvm_children|scope:nvm_op_key)" }
-		local_var:nvm_nav = {
-			save_scope_as = nvm_cursor
+		"variable_map(nvm_children|scope:nvm_op_key)" = {
+			save_temporary_scope_as = nvm_cursor
 			set_variable = { name = nvm_accessed_from value = scope:nvm_op_parent }
 		}
 		set_local_variable = { name = nvm_found value = yes }
@@ -138,7 +137,7 @@ nvm_get_map = {
 # Result: local_var:nvm_found = yes or no
 
 nvm_has_map = {
-	$key$ = { save_scope_as = nvm_op_key }
+	$key$ = { save_temporary_scope_as = nvm_op_key }
 	if = {
 		limit = { is_key_in_variable_map = { name = nvm_children target = scope:nvm_op_key } }
 		set_local_variable = { name = nvm_found value = yes }
@@ -148,9 +147,39 @@ nvm_has_map = {
 }
 
 # ───────────────────────────────────────────────────────────────────────────────
+# nvm_set_map
+# ───────────────────────────────────────────────────────────────────────────────
+# Links an existing node as a child of this dictionary at the given key.
+# If the key already has a child, replaces it (unregisters the old child's
+# parent reference first). Registers this dictionary on the new child's
+# parent list for cleanup tracking.
+#
+# Symmetric with nvm_set_value and nvm_set_scope. Use this when the child
+# node already exists (e.g., created by nvm_new_map or a constructor).
+# Use nvm_get_or_set_map when you want the library to allocate a new child.
+#
+# Scope: parent dictionary
+# Parameters: $key$ = scope, $child$ = the node to link
+
+nvm_set_map = {
+	$key$ = { save_temporary_scope_as = nvm_op_key }
+	save_temporary_scope_as = nvm_op_parent
+	if = { limit = { is_key_in_variable_map = { name = nvm_children target = scope:nvm_op_key } }
+		"variable_map(nvm_children|scope:nvm_op_key)" = {
+			remove_list_variable = { name = nvm_parents target = scope:nvm_op_parent }
+		}
+		remove_from_variable_map = { name = nvm_children key = scope:nvm_op_key }
+	}
+	add_to_variable_map = { name = nvm_children key = scope:nvm_op_key value = $child$ }
+	$child$ = {
+		add_to_variable_list = { name = nvm_parents target = scope:nvm_op_parent }
+	}
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
 # nvm_check_key
 # ───────────────────────────────────────────────────────────────────────────────
-# Checks all three maps at once to determine what types of data exist at a key.
+# Checks all four maps at once to determine what types of data exist at a key.
 # A single key can have entries in multiple maps simultaneously.
 #
 # Scope: dictionary
@@ -158,7 +187,7 @@ nvm_has_map = {
 # Result: local_var:nvm_has_map, local_var:nvm_has_value, local_var:nvm_has_scope
 
 nvm_check_key = {
-	$key$ = { save_scope_as = nvm_op_key }
+	$key$ = { save_temporary_scope_as = nvm_op_key }
 	if = { limit = { is_key_in_variable_map = { name = nvm_children target = scope:nvm_op_key } }
 		set_local_variable = { name = nvm_has_map value = yes }
 	} else = {
@@ -192,11 +221,10 @@ nvm_check_key = {
 # Parameter: $key$
 
 nvm_remove_map = {
-	$key$ = { save_scope_as = nvm_op_key }
+	$key$ = { save_temporary_scope_as = nvm_op_key }
 	if = { limit = { is_key_in_variable_map = { name = nvm_children target = scope:nvm_op_key } }
-		save_scope_as = nvm_op_parent
-		set_local_variable = { name = nvm_nav value = "variable_map(nvm_children|scope:nvm_op_key)" }
-		local_var:nvm_nav = {
+		save_temporary_scope_as = nvm_op_parent
+		"variable_map(nvm_children|scope:nvm_op_key)" = {
 			remove_list_variable = { name = nvm_parents target = scope:nvm_op_parent }
 		}
 		remove_from_variable_map = { name = nvm_children key = scope:nvm_op_key }
@@ -231,7 +259,7 @@ nvm_clear_maps = {
 # Parameters: $key$ = scope, $value$ = number or variable reference
 
 nvm_set_value = {
-	$key$ = { save_scope_as = nvm_op_key }
+	$key$ = { save_temporary_scope_as = nvm_op_key }
 	if = { limit = { is_key_in_variable_map = { name = nvm_values target = scope:nvm_op_key } }
 		remove_from_variable_map = { name = nvm_values key = scope:nvm_op_key }
 	}
@@ -248,7 +276,7 @@ nvm_set_value = {
 # Result: local_var:nvm_result
 
 nvm_get_value = {
-	$key$ = { save_scope_as = nvm_op_key }
+	$key$ = { save_temporary_scope_as = nvm_op_key }
 	set_local_variable = { name = nvm_result value = "variable_map(nvm_values|scope:nvm_op_key)" }
 }
 
@@ -262,7 +290,7 @@ nvm_get_value = {
 # Result: local_var:nvm_found = yes or no
 
 nvm_has_value = {
-	$key$ = { save_scope_as = nvm_op_key }
+	$key$ = { save_temporary_scope_as = nvm_op_key }
 	if = {
 		limit = { is_key_in_variable_map = { name = nvm_values target = scope:nvm_op_key } }
 		set_local_variable = { name = nvm_found value = yes }
@@ -280,7 +308,7 @@ nvm_has_value = {
 # Parameter: $key$
 
 nvm_remove_value = {
-	$key$ = { save_scope_as = nvm_op_key }
+	$key$ = { save_temporary_scope_as = nvm_op_key }
 	if = { limit = { is_key_in_variable_map = { name = nvm_values target = scope:nvm_op_key } }
 		remove_from_variable_map = { name = nvm_values key = scope:nvm_op_key }
 	}
@@ -307,11 +335,11 @@ nvm_clear_values = {
 # Parameters: $key$, $operation$ = add/subtract/multiply/divide, $value$ = amount
 #
 # Usage:
-#   scope:my_dict.nvm_change_value = { key = goods:wheat operation = add value = local_var:v }
-#   scope:my_dict.nvm_change_value = { key = goods:wheat operation = multiply value = local_var:v }
+#   scope:my_dict = { nvm_change_value = { key = goods:wheat operation = add value = local_var:v } }
+#   scope:my_dict = { nvm_change_value = { key = goods:wheat operation = multiply value = local_var:v } }
 
 nvm_change_value = {
-	$key$ = { save_scope_as = nvm_op_key }
+	$key$ = { save_temporary_scope_as = nvm_op_key }
 	set_local_variable = { name = nvm_current value = 0 }
 	if = { limit = { is_key_in_variable_map = { name = nvm_values target = scope:nvm_op_key } }
 		set_local_variable = { name = nvm_current value = "variable_map(nvm_values|scope:nvm_op_key)" }
@@ -331,8 +359,8 @@ nvm_change_value = {
 # Parameters: $key_a$, $key_b$
 
 nvm_swap_values = {
-	$key_a$ = { save_scope_as = nvm_op_key_a }
-	$key_b$ = { save_scope_as = nvm_op_key_b }
+	$key_a$ = { save_temporary_scope_as = nvm_op_key_a }
+	$key_b$ = { save_temporary_scope_as = nvm_op_key_b }
 	# Read both values
 	set_local_variable = { name = nvm_val_a value = "variable_map(nvm_values|scope:nvm_op_key_a)" }
 	set_local_variable = { name = nvm_val_b value = "variable_map(nvm_values|scope:nvm_op_key_b)" }
@@ -362,7 +390,7 @@ nvm_swap_values = {
 # Parameters: $key$ = scope, $value$ = scope reference to store
 
 nvm_set_scope = {
-	$key$ = { save_scope_as = nvm_op_key }
+	$key$ = { save_temporary_scope_as = nvm_op_key }
 	if = { limit = { is_key_in_variable_map = { name = nvm_scopes target = scope:nvm_op_key } }
 		remove_from_variable_map = { name = nvm_scopes key = scope:nvm_op_key }
 	}
@@ -379,11 +407,10 @@ nvm_set_scope = {
 # Result: scope:nvm_scope = the stored scope. local_var:nvm_found = yes or no.
 
 nvm_get_scope = {
-	$key$ = { save_scope_as = nvm_op_key }
+	$key$ = { save_temporary_scope_as = nvm_op_key }
 	if = {
 		limit = { is_key_in_variable_map = { name = nvm_scopes target = scope:nvm_op_key } }
-		set_local_variable = { name = nvm_nav value = "variable_map(nvm_scopes|scope:nvm_op_key)" }
-		local_var:nvm_nav = { save_scope_as = nvm_scope }
+		"variable_map(nvm_scopes|scope:nvm_op_key)" = { save_temporary_scope_as = nvm_scope }
 		set_local_variable = { name = nvm_found value = yes }
 	} else = {
 		set_local_variable = { name = nvm_found value = no }
@@ -400,7 +427,7 @@ nvm_get_scope = {
 # Result: local_var:nvm_found = yes or no
 
 nvm_has_scope = {
-	$key$ = { save_scope_as = nvm_op_key }
+	$key$ = { save_temporary_scope_as = nvm_op_key }
 	if = {
 		limit = { is_key_in_variable_map = { name = nvm_scopes target = scope:nvm_op_key } }
 		set_local_variable = { name = nvm_found value = yes }
@@ -418,7 +445,7 @@ nvm_has_scope = {
 # Parameter: $key$
 
 nvm_remove_scope = {
-	$key$ = { save_scope_as = nvm_op_key }
+	$key$ = { save_temporary_scope_as = nvm_op_key }
 	if = { limit = { is_key_in_variable_map = { name = nvm_scopes target = scope:nvm_op_key } }
 		remove_from_variable_map = { name = nvm_scopes key = scope:nvm_op_key }
 	}
@@ -461,13 +488,12 @@ nvm_clear_scopes = {
 #         local_var:nvm_found = yes if list already existed, no if created new
 
 nvm_get_or_set_list = {
-	$key$ = { save_scope_as = nvm_op_key }
-	save_scope_as = nvm_op_parent
+	$key$ = { save_temporary_scope_as = nvm_op_key }
+	save_temporary_scope_as = nvm_op_parent
 	if = {
 		limit = { is_key_in_variable_map = { name = nvm_lists target = scope:nvm_op_key } }
-		set_local_variable = { name = nvm_nav value = "variable_map(nvm_lists|scope:nvm_op_key)" }
-		local_var:nvm_nav = {
-			save_scope_as = nvm_cursor
+		"variable_map(nvm_lists|scope:nvm_op_key)" = {
+			save_temporary_scope_as = nvm_cursor
 			set_variable = { name = nvm_accessed_from value = scope:nvm_op_parent }
 		}
 		set_local_variable = { name = nvm_found value = yes }
@@ -479,7 +505,7 @@ nvm_get_or_set_list = {
 		}
 		add_to_variable_map = { name = nvm_lists key = scope:nvm_op_key value = scope:nvm_map }
 		scope:nvm_map = {
-			save_scope_as = nvm_cursor
+			save_temporary_scope_as = nvm_cursor
 			add_to_variable_list = { name = nvm_parents target = scope:nvm_op_parent }
 			set_variable = { name = nvm_accessed_from value = scope:nvm_op_parent }
 		}
@@ -497,13 +523,12 @@ nvm_get_or_set_list = {
 # Result: scope:nvm_cursor = the list node. local_var:nvm_found = yes or no.
 
 nvm_get_list = {
-	$key$ = { save_scope_as = nvm_op_key }
-	save_scope_as = nvm_op_parent
+	$key$ = { save_temporary_scope_as = nvm_op_key }
+	save_temporary_scope_as = nvm_op_parent
 	if = {
 		limit = { is_key_in_variable_map = { name = nvm_lists target = scope:nvm_op_key } }
-		set_local_variable = { name = nvm_nav value = "variable_map(nvm_lists|scope:nvm_op_key)" }
-		local_var:nvm_nav = {
-			save_scope_as = nvm_cursor
+		"variable_map(nvm_lists|scope:nvm_op_key)" = {
+			save_temporary_scope_as = nvm_cursor
 			set_variable = { name = nvm_accessed_from value = scope:nvm_op_parent }
 		}
 		set_local_variable = { name = nvm_found value = yes }
@@ -522,7 +547,7 @@ nvm_get_list = {
 # Result: local_var:nvm_found = yes or no
 
 nvm_has_list = {
-	$key$ = { save_scope_as = nvm_op_key }
+	$key$ = { save_temporary_scope_as = nvm_op_key }
 	if = {
 		limit = { is_key_in_variable_map = { name = nvm_lists target = scope:nvm_op_key } }
 		set_local_variable = { name = nvm_found value = yes }
@@ -541,11 +566,10 @@ nvm_has_list = {
 # Parameter: $key$
 
 nvm_remove_list = {
-	$key$ = { save_scope_as = nvm_op_key }
+	$key$ = { save_temporary_scope_as = nvm_op_key }
 	if = { limit = { is_key_in_variable_map = { name = nvm_lists target = scope:nvm_op_key } }
-		save_scope_as = nvm_op_parent
-		set_local_variable = { name = nvm_nav value = "variable_map(nvm_lists|scope:nvm_op_key)" }
-		local_var:nvm_nav = {
+		save_temporary_scope_as = nvm_op_parent
+		"variable_map(nvm_lists|scope:nvm_op_key)" = {
 			remove_list_variable = { name = nvm_parents target = scope:nvm_op_parent }
 		}
 		remove_from_variable_map = { name = nvm_lists key = scope:nvm_op_key }
@@ -587,16 +611,14 @@ nvm_list_add = {
 # Result: scope:nvm_scope = the stored scope. local_var:nvm_found = yes or no.
 
 nvm_list_get = {
-	set_variable = { name = nvm_op_idx value = $index$ }
+	set_local_variable = { name = nvm_op_idx value = $index$ }
 	if = {
-		limit = { is_key_in_variable_map = { name = nvm_children target = var:nvm_op_idx } }
-		set_local_variable = { name = nvm_nav value = "variable_map(nvm_children|var:nvm_op_idx)" }
-		local_var:nvm_nav = { save_scope_as = nvm_scope }
+		limit = { is_key_in_variable_map = { name = nvm_children target = local_var:nvm_op_idx } }
+		"variable_map(nvm_children|local_var:nvm_op_idx)" = { save_temporary_scope_as = nvm_scope }
 		set_local_variable = { name = nvm_found value = yes }
 	} else = {
 		set_local_variable = { name = nvm_found value = no }
 	}
-	remove_variable = nvm_op_idx
 }
 
 # ───────────────────────────────────────────────────────────────────────────────
@@ -615,19 +637,15 @@ nvm_list_remove = {
 
 	if = {
 		limit = { NOT = { local_var:nvm_target = local_var:nvm_last } }
-		# Swap last item into the removed position
-		set_variable = { name = nvm_op_idx value = local_var:nvm_last }
-		set_local_variable = { name = nvm_nav value = "variable_map(nvm_children|var:nvm_op_idx)" }
+		set_local_variable = { name = nvm_nav value = "variable_map(nvm_children|local_var:nvm_last)" }
 		remove_from_variable_map = { name = nvm_children key = $index$ }
-		remove_from_variable_map = { name = nvm_children key = var:nvm_op_idx }
+		remove_from_variable_map = { name = nvm_children key = local_var:nvm_last }
 		add_to_variable_map = { name = nvm_children key = $index$ value = local_var:nvm_nav }
 	} else = {
-		# Removing the last item: just remove it
 		remove_from_variable_map = { name = nvm_children key = $index$ }
 	}
 
 	change_variable = { name = nvm_list_size subtract = 1 }
-	if = { limit = { has_variable = nvm_op_idx } remove_variable = nvm_op_idx }
 }
 
 # ───────────────────────────────────────────────────────────────────────────────
@@ -647,9 +665,7 @@ nvm_list_find = {
 		count = var:nvm_list_size
 		if = {
 			limit = { local_var:nvm_found = no }
-			set_variable = { name = nvm_op_idx value = local_var:nvm_i }
-			set_local_variable = { name = nvm_nav value = "variable_map(nvm_children|var:nvm_op_idx)" }
-			local_var:nvm_nav = {
+			"variable_map(nvm_children|local_var:nvm_i)" = {
 				if = {
 					limit = { this = $value$ }
 					set_local_variable = { name = nvm_found value = yes }
@@ -659,7 +675,6 @@ nvm_list_find = {
 		}
 		change_local_variable = { name = nvm_i add = 1 }
 	}
-	if = { limit = { has_variable = nvm_op_idx } remove_variable = nvm_op_idx }
 }
 
 # ───────────────────────────────────────────────────────────────────────────────
@@ -705,6 +720,26 @@ nvm_list_clear = {
 	set_variable = { name = nvm_list_size value = 0 }
 }
 
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_list_pop
+# ───────────────────────────────────────────────────────────────────────────────
+# Removes and returns the last item. Preserves order of remaining items.
+#
+# Scope: list node
+# Result: scope:nvm_scope = the removed item. local_var:nvm_found = yes or no.
+
+nvm_list_pop = {
+	if = {
+		limit = { var:nvm_list_size > 0 }
+		change_variable = { name = nvm_list_size subtract = 1 }
+		"variable_map(nvm_children|var:nvm_list_size)" = { save_temporary_scope_as = nvm_scope }
+		remove_from_variable_map = { name = nvm_children key = var:nvm_list_size }
+		set_local_variable = { name = nvm_found value = yes }
+	} else = {
+		set_local_variable = { name = nvm_found value = no }
+	}
+}
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # UNORDERED SETS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -716,7 +751,7 @@ nvm_list_clear = {
 #   scope:my_set = {
 #       every_key_in_variable_map = {
 #           variable = nvm_children
-#           save_scope_as = item
+#           save_temporary_scope_as = item
 #           # scope:item IS the set element
 #       }
 #   }
@@ -735,13 +770,12 @@ nvm_list_clear = {
 #         local_var:nvm_found = yes if set already existed, no if created new
 
 nvm_get_or_set_set = {
-	$key$ = { save_scope_as = nvm_op_key }
-	save_scope_as = nvm_op_parent
+	$key$ = { save_temporary_scope_as = nvm_op_key }
+	save_temporary_scope_as = nvm_op_parent
 	if = {
 		limit = { is_key_in_variable_map = { name = nvm_lists target = scope:nvm_op_key } }
-		set_local_variable = { name = nvm_nav value = "variable_map(nvm_lists|scope:nvm_op_key)" }
-		local_var:nvm_nav = {
-			save_scope_as = nvm_cursor
+		"variable_map(nvm_lists|scope:nvm_op_key)" = {
+			save_temporary_scope_as = nvm_cursor
 			set_variable = { name = nvm_accessed_from value = scope:nvm_op_parent }
 		}
 		set_local_variable = { name = nvm_found value = yes }
@@ -752,7 +786,7 @@ nvm_get_or_set_set = {
 		}
 		add_to_variable_map = { name = nvm_lists key = scope:nvm_op_key value = scope:nvm_map }
 		scope:nvm_map = {
-			save_scope_as = nvm_cursor
+			save_temporary_scope_as = nvm_cursor
 			add_to_variable_list = { name = nvm_parents target = scope:nvm_op_parent }
 			set_variable = { name = nvm_accessed_from value = scope:nvm_op_parent }
 		}
@@ -770,13 +804,12 @@ nvm_get_or_set_set = {
 # Result: scope:nvm_cursor = the set node. local_var:nvm_found = yes or no.
 
 nvm_get_set = {
-	$key$ = { save_scope_as = nvm_op_key }
-	save_scope_as = nvm_op_parent
+	$key$ = { save_temporary_scope_as = nvm_op_key }
+	save_temporary_scope_as = nvm_op_parent
 	if = {
 		limit = { is_key_in_variable_map = { name = nvm_lists target = scope:nvm_op_key } }
-		set_local_variable = { name = nvm_nav value = "variable_map(nvm_lists|scope:nvm_op_key)" }
-		local_var:nvm_nav = {
-			save_scope_as = nvm_cursor
+		"variable_map(nvm_lists|scope:nvm_op_key)" = {
+			save_temporary_scope_as = nvm_cursor
 			set_variable = { name = nvm_accessed_from value = scope:nvm_op_parent }
 		}
 		set_local_variable = { name = nvm_found value = yes }
@@ -788,13 +821,47 @@ nvm_get_set = {
 # ───────────────────────────────────────────────────────────────────────────────
 # nvm_set_add
 # ───────────────────────────────────────────────────────────────────────────────
-# Inserts a scope into the set. Duplicate adds are silently ignored.
+# Inserts a scope into the set with weight 0. Duplicate adds are silently
+# ignored (weight is NOT updated; use nvm_set_add_weighted to set a weight).
 #
 # Scope: set node
 # Parameter: $value$ = scope to insert
 
 nvm_set_add = {
-	add_to_variable_map = { name = nvm_children key = $value$ value = 1 }
+	add_to_variable_map = { name = nvm_children key = $value$ value = 0 }
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_set_add_weighted
+# ───────────────────────────────────────────────────────────────────────────────
+# Inserts or updates a scope in the set with an associated weight. If the
+# item already exists, its weight is overwritten. Enables weighted graph
+# traversal, relationship strength, trade costs, etc.
+#
+# Scope: set node
+# Parameters: $value$ = scope to insert, $weight$ = numeric weight
+
+nvm_set_add_weighted = {
+	$value$ = { save_temporary_scope_as = nvm_op_key }
+	if = { limit = { is_key_in_variable_map = { name = nvm_children target = scope:nvm_op_key } }
+		remove_from_variable_map = { name = nvm_children key = scope:nvm_op_key }
+	}
+	add_to_variable_map = { name = nvm_children key = scope:nvm_op_key value = $weight$ }
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_set_get_weight
+# ───────────────────────────────────────────────────────────────────────────────
+# Reads the weight associated with a set item. Returns 0 for items added
+# without a weight or for missing items.
+#
+# Scope: set node
+# Parameter: $value$ = scope to read weight for
+# Result: local_var:nvm_result = the weight
+
+nvm_set_get_weight = {
+	$value$ = { save_temporary_scope_as = nvm_op_key }
+	set_local_variable = { name = nvm_result value = "variable_map(nvm_children|scope:nvm_op_key)" }
 }
 
 # ───────────────────────────────────────────────────────────────────────────────
@@ -851,17 +918,45 @@ nvm_set_clear = {
 # Types use flag: scopes (localization key references) as identifiers:
 #   nvm_set_type = { type = flag:my_horse }
 #   nvm_is_type = { type = flag:my_horse }
+#
+# TYPE REGISTRY:
+#   nvm_set_type auto-registers the node in a global per-type set.
+#   nvm_wipe_and_release auto-deregisters on deletion.
+#   nvm_for_each_of_type iterates all live nodes of a given type.
 
 # ───────────────────────────────────────────────────────────────────────────────
 # nvm_set_type
 # ───────────────────────────────────────────────────────────────────────────────
-# Stamps a type identifier on the node. Overwrites any existing type.
+# Stamps a type identifier on the node and registers it in the type registry.
+# If the node already has a different type, deregisters from the old type first.
 #
 # Scope: dictionary node
 # Parameter: $type$ = flag: scope to use as the type identifier
+# Side effect: scope:nvm_map is restored to this node after internal allocation
 
 nvm_set_type = {
+	save_temporary_scope_as = nvm_typed_node
+
+	if = {
+		limit = { has_variable = nvm_type NOT = { var:nvm_type = $type$ } }
+		var:nvm_type = { save_temporary_scope_as = nvm_old_type }
+		global_var:nvm_type_registry = {
+			nvm_get_set = { key = scope:nvm_old_type }
+		}
+		if = {
+			limit = { local_var:nvm_found = yes }
+			scope:nvm_cursor = { nvm_set_remove = { value = scope:nvm_typed_node } }
+		}
+	}
+
 	set_variable = { name = nvm_type value = $type$ }
+
+	global_var:nvm_type_registry = {
+		nvm_get_or_set_set = { key = $type$ }
+	}
+	scope:nvm_cursor = { nvm_set_add = { value = scope:nvm_typed_node } }
+
+	scope:nvm_typed_node = { save_temporary_scope_as = nvm_map }
 }
 
 # ───────────────────────────────────────────────────────────────────────────────
@@ -875,7 +970,7 @@ nvm_set_type = {
 nvm_get_type = {
 	if = {
 		limit = { has_variable = nvm_type }
-		var:nvm_type = { save_scope_as = nvm_scope }
+		var:nvm_type = { save_temporary_scope_as = nvm_scope }
 		set_local_variable = { name = nvm_found value = yes }
 	} else = {
 		set_local_variable = { name = nvm_found value = no }
@@ -897,5 +992,266 @@ nvm_is_type = {
 		set_local_variable = { name = nvm_found value = yes }
 	} else = {
 		set_local_variable = { name = nvm_found value = no }
+	}
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_for_each_of_type
+# ───────────────────────────────────────────────────────────────────────────────
+# Iterates all live nodes that were stamped with the given type.
+# Calls $callback$ per node with:
+#   scope:nvm_iter_item = the typed node
+#
+# Scope: any (uses global registry)
+# Parameters: $type$ = flag: scope, $callback$ = scripted effect name
+
+nvm_for_each_of_type = {
+	global_var:nvm_type_registry = {
+		nvm_get_set = { key = $type$ }
+	}
+	if = {
+		limit = { local_var:nvm_found = yes }
+		scope:nvm_cursor = { nvm_for_each_set_item = { callback = $callback$ } }
+	}
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# GET WITH DEFAULT
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_get_value_or
+# ───────────────────────────────────────────────────────────────────────────────
+# Reads a numeric value, returning a default if the key is missing.
+#
+# Scope: dictionary
+# Parameters: $key$, $default$
+# Result: local_var:nvm_result
+
+nvm_get_value_or = {
+	$key$ = { save_temporary_scope_as = nvm_op_key }
+	if = {
+		limit = { is_key_in_variable_map = { name = nvm_values target = scope:nvm_op_key } }
+		set_local_variable = { name = nvm_result value = "variable_map(nvm_values|scope:nvm_op_key)" }
+	} else = {
+		set_local_variable = { name = nvm_result value = $default$ }
+	}
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_set_value_if_absent
+# ───────────────────────────────────────────────────────────────────────────────
+# Sets a value only if the key does not already exist.
+#
+# Scope: dictionary
+# Parameters: $key$, $value$
+# Result: local_var:nvm_found = yes if key already existed, no if set
+
+nvm_set_value_if_absent = {
+	$key$ = { save_temporary_scope_as = nvm_op_key }
+	if = {
+		limit = { is_key_in_variable_map = { name = nvm_values target = scope:nvm_op_key } }
+		set_local_variable = { name = nvm_found value = yes }
+	} else = {
+		add_to_variable_map = { name = nvm_values key = scope:nvm_op_key value = $value$ }
+		set_local_variable = { name = nvm_found value = no }
+	}
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# NODE VALIDATION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_is_valid
+# ───────────────────────────────────────────────────────────────────────────────
+# Checks whether the current scope is a tracked NVM pool node.
+#
+# Scope: any
+# Result: local_var:nvm_found = yes if this scope is in the active pool
+
+nvm_is_valid = {
+	if = {
+		limit = { is_key_in_global_variable_map = { name = nvm_pool_active target = this } }
+		set_local_variable = { name = nvm_found value = yes }
+	} else = {
+		set_local_variable = { name = nvm_found value = no }
+	}
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MOVE CHILD
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_move_map
+# ───────────────────────────────────────────────────────────────────────────────
+# Moves a child from one parent to another. Unlinks from the source,
+# links to the destination, and updates the child's parent list.
+#
+# Scope: source parent dictionary
+# Parameters: $key$ = key in source, $target$ = destination dictionary,
+#             $target_key$ = key in destination
+
+nvm_move_map = {
+	$key$ = { save_temporary_scope_as = nvm_op_key }
+	if = {
+		limit = { is_key_in_variable_map = { name = nvm_children target = scope:nvm_op_key } }
+		save_temporary_scope_as = nvm_op_parent
+		"variable_map(nvm_children|scope:nvm_op_key)" = {
+			save_temporary_scope_as = nvm_move_child
+			remove_list_variable = { name = nvm_parents target = scope:nvm_op_parent }
+			add_to_variable_list = { name = nvm_parents target = $target$ }
+		}
+
+		remove_from_variable_map = { name = nvm_children key = scope:nvm_op_key }
+
+		$target_key$ = { save_temporary_scope_as = nvm_op_key }
+		$target$ = {
+			if = { limit = { is_key_in_variable_map = { name = nvm_children target = scope:nvm_op_key } }
+				remove_from_variable_map = { name = nvm_children key = scope:nvm_op_key }
+			}
+			add_to_variable_map = { name = nvm_children key = scope:nvm_op_key value = scope:nvm_move_child }
+		}
+	}
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ITERATION
+# ═══════════════════════════════════════════════════════════════════════════════
+# Wrappers around every_key_in_variable_map that handle the scope-swap
+# and value extraction internally. The modder defines a named scripted
+# effect as a callback; it receives the key and value via reserved names.
+#
+# Usage:
+#   my_handler = {
+#       # scope:nvm_iter_key = the current key
+#       # local_var:nvm_iter_value = the numeric value (for_each_value)
+#       # scope:nvm_iter_value = the scope reference (for_each_scope/child)
+#   }
+#   scope:my_dict = { nvm_for_each_value = { callback = my_handler } }
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_for_each_value
+# ───────────────────────────────────────────────────────────────────────────────
+# Iterates all numeric values. Calls $callback$ per entry with:
+#   scope:nvm_iter_key   = the key scope
+#   local_var:nvm_iter_value = the numeric value
+#   this = the dictionary
+#
+# Scope: dictionary
+# Parameter: $callback$ = name of a scripted effect to call per entry
+
+nvm_for_each_value = {
+	save_temporary_scope_as = nvm_iter_dict
+	if = { limit = { has_variable_map = nvm_values }
+		every_key_in_variable_map = {
+			variable = nvm_values
+			save_temporary_scope_as = nvm_iter_key
+			scope:nvm_iter_dict = {
+				set_local_variable = { name = nvm_iter_value value = "variable_map(nvm_values|scope:nvm_iter_key)" }
+				$callback$ = yes
+			}
+		}
+	}
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_for_each_scope
+# ───────────────────────────────────────────────────────────────────────────────
+# Iterates all scope references. Calls $callback$ per entry with:
+#   scope:nvm_iter_key   = the key scope
+#   scope:nvm_iter_value = the stored scope reference
+#   this = the dictionary
+#
+# Scope: dictionary
+# Parameter: $callback$ = name of a scripted effect to call per entry
+
+nvm_for_each_scope = {
+	save_temporary_scope_as = nvm_iter_dict
+	if = { limit = { has_variable_map = nvm_scopes }
+		every_key_in_variable_map = {
+			variable = nvm_scopes
+			save_temporary_scope_as = nvm_iter_key
+			scope:nvm_iter_dict = {
+				"variable_map(nvm_scopes|scope:nvm_iter_key)" = { save_temporary_scope_as = nvm_iter_value }
+				$callback$ = yes
+			}
+		}
+	}
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_for_each_child
+# ───────────────────────────────────────────────────────────────────────────────
+# Iterates all sub-dictionaries. Calls $callback$ per entry with:
+#   scope:nvm_iter_key   = the key scope
+#   scope:nvm_iter_child = the child dictionary node
+#   this = the parent dictionary
+#
+# Scope: dictionary
+# Parameter: $callback$ = name of a scripted effect to call per entry
+
+nvm_for_each_child = {
+	save_temporary_scope_as = nvm_iter_dict
+	if = { limit = { has_variable_map = nvm_children }
+		every_key_in_variable_map = {
+			variable = nvm_children
+			save_temporary_scope_as = nvm_iter_key
+			scope:nvm_iter_dict = {
+				"variable_map(nvm_children|scope:nvm_iter_key)" = { save_temporary_scope_as = nvm_iter_child }
+				$callback$ = yes
+			}
+		}
+	}
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_for_each_set_item
+# ───────────────────────────────────────────────────────────────────────────────
+# Iterates all items in an unordered set. Calls $callback$ per item with:
+#   scope:nvm_iter_item        = the set element
+#   local_var:nvm_iter_weight  = the item's weight (0 if unweighted)
+#   this = the set node
+#
+# Scope: set node
+# Parameter: $callback$ = name of a scripted effect to call per item
+
+nvm_for_each_set_item = {
+	save_temporary_scope_as = nvm_iter_dict
+	if = { limit = { has_variable_map = nvm_children }
+		every_key_in_variable_map = {
+			variable = nvm_children
+			save_temporary_scope_as = nvm_iter_item
+			scope:nvm_iter_dict = {
+				set_local_variable = { name = nvm_iter_weight value = "variable_map(nvm_children|scope:nvm_iter_item)" }
+				$callback$ = yes
+			}
+		}
+	}
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# nvm_for_each_list_item
+# ───────────────────────────────────────────────────────────────────────────────
+# Iterates all items in an ordered list by index. Calls $callback$ per item with:
+#   scope:nvm_iter_item       = the list element
+#   local_var:nvm_iter_index  = the current index (0-based)
+#   this = the list node
+#
+# Scope: list node
+# Parameter: $callback$ = name of a scripted effect to call per item
+
+nvm_for_each_list_item = {
+	set_local_variable = { name = nvm_iter_index value = 0 }
+	while = {
+		count = var:nvm_list_size
+		nvm_list_get = { index = local_var:nvm_iter_index }
+		if = {
+			limit = { local_var:nvm_found = yes }
+			scope:nvm_scope = { save_temporary_scope_as = nvm_iter_item }
+			$callback$ = yes
+		}
+		change_local_variable = { name = nvm_iter_index add = 1 }
 	}
 }

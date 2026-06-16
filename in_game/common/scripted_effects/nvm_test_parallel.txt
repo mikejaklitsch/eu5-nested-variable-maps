@@ -19,7 +19,7 @@ nvm_parallel_setup_impl = {
 	debug_log = "NVM_PAR setup start"
 
 	nvm_new_map = yes
-	scope:nvm_map = { save_scope_as = nvm_par_shared_root }
+	scope:nvm_map = { save_temporary_scope_as = nvm_par_shared_root }
 	set_global_variable = { name = nvm_par_shared value = scope:nvm_par_shared_root }
 
 	set_local_variable = { name = v value = 42 }
@@ -88,7 +88,9 @@ nvm_parallel_verify_impl = {
 		}
 	}
 
-	debug_log = "NVM_PAR TEST B (write-only, 10 alloc): countries=[SCOPE.GetLocalVariable('b_countries').GetValue|0] pass=[SCOPE.GetLocalVariable('b_pass').GetValue|0] RACE FAILURES: value=[SCOPE.GetLocalVariable('b_fail').GetValue|0] type=[SCOPE.GetLocalVariable('b_type_pass').GetValue|0]"
+	set_local_variable = { name = b_type_fail value = local_var:b_countries }
+	change_local_variable = { name = b_type_fail subtract = local_var:b_type_pass }
+	debug_log = "NVM_PAR TEST B (write-only, 10 alloc): countries=[SCOPE.GetLocalVariable('b_countries').GetValue|0] RACE FAILURES: value=[SCOPE.GetLocalVariable('b_fail').GetValue|0] type=[SCOPE.GetLocalVariable('b_type_fail').GetValue|0]"
 
 	# ═══════════════════════════════════════════════════════════════════════
 	# TEST C: READ-WRITE
@@ -150,7 +152,7 @@ nvm_every_country_clobber_test = {
 	debug_log = "NVM_PAR every_country clobber test start"
 
 	nvm_new_map = yes
-	scope:nvm_map = { save_scope_as = nvm_clobber_shared }
+	scope:nvm_map = { save_temporary_scope_as = nvm_clobber_shared }
 	set_local_variable = { name = v value = 42 }
 	scope:nvm_clobber_shared = { nvm_set_value = { key = goods:wheat value = local_var:v } }
 

@@ -15,8 +15,7 @@
 # is spawned and killed. Freed nodes return to the free pool for reuse.
 # global_var:nvm_pool_size tracks total nodes ever created.
 #
-# IMPORTANT: All scope saves in this system use save_scope_as (persistent).
-# save_temporary_scope_as does NOT support variable map writes on re-entry.
+# Internal scope saves use save_temporary_scope_as to avoid polluting saves.
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # nvm_init_pool
@@ -30,6 +29,11 @@ nvm_init_pool = {
 	if = {
 		limit = { NOT = { has_global_variable = nvm_pool_size } }
 		set_global_variable = { name = nvm_pool_size value = 0 }
+	}
+	if = {
+		limit = { NOT = { has_global_variable = nvm_type_registry } }
+		nvm_new_map = yes
+		set_global_variable = { name = nvm_type_registry value = scope:nvm_map }
 	}
 }
 
@@ -46,14 +50,14 @@ nvm_init_pool = {
 #
 # Usage:
 #   nvm_new_map = yes
-#   scope:nvm_map = { save_scope_as = my_data }
+#   scope:nvm_map = { save_temporary_scope_as = my_data }
 
 nvm_new_map = {
 	set_local_variable = { name = nvm_found value = no }
 
 	ordered_key_in_global_variable_map = {
 		variable = nvm_pool_free
-		save_scope_as = nvm_map
+		save_temporary_scope_as = nvm_map
 		set_local_variable = { name = nvm_found value = yes }
 	}
 
@@ -62,7 +66,7 @@ nvm_new_map = {
 		remove_from_global_variable_map = { name = nvm_pool_free key = scope:nvm_map }
 	} else = {
 		random_country = {
-			create_character = { save_scope_as = nvm_map }
+			create_character = { save_temporary_scope_as = nvm_map }
 		}
 		kill_character_silently = scope:nvm_map
 		change_global_variable = { name = nvm_pool_size add = 1 }

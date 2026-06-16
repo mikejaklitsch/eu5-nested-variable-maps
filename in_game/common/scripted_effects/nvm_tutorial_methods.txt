@@ -1,30 +1,75 @@
 ﻿# ═══════════════════════════════════════════════════════════════════════════════
 # HORSE RACING TUTORIAL: METHODS
 # ═══════════════════════════════════════════════════════════════════════════════
-# "Methods" are scripted effects that operate on a typed node passed via scope.
-# The node IS `this` (or a saved scope). Methods read and write the node's
-# variable maps just like member functions access instance fields.
+# Methods are scripted effects called on a node. The node is `this`.
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Assign jockey: bidirectional scope reference link
+# ───────────────────────────────────────────────────────────────────────────────
+# Scope: Horse node
+# Parameter: $jockey$ = the character to assign
 
 nvm_tutorial_assign_jockey = {
 	nvm_set_scope = { key = flag:nvm_tutorial_jockey value = $jockey$ }
-	save_scope_as = nvm_op_parent
+	save_scope_as = parent_node
 	$jockey$ = {
-		nvm_set_scope = { key = flag:nvm_tutorial_mount value = scope:nvm_op_parent }
+		nvm_set_scope = { key = flag:nvm_tutorial_mount value = scope:parent_node }
 	}
 }
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Set lineage: link sire and dam
+# ───────────────────────────────────────────────────────────────────────────────
+# Scope: Horse node
+# Parameters: $sire$, $dam$
 
 nvm_tutorial_set_lineage = {
 	nvm_set_scope = { key = flag:nvm_tutorial_sire value = $sire$ }
 	nvm_set_scope = { key = flag:nvm_tutorial_dam value = $dam$ }
 }
 
+# ───────────────────────────────────────────────────────────────────────────────
+# Train: increase a stat
+# ───────────────────────────────────────────────────────────────────────────────
+# Scope: Horse node
+# Parameters: $stat$, $amount$
+
 nvm_tutorial_train = {
 	nvm_change_value = { key = $stat$ operation = add value = $amount$ }
 }
 
+# ───────────────────────────────────────────────────────────────────────────────
+# Get power: sum speed + stamina + endurance + jockey skill (if assigned)
+# ───────────────────────────────────────────────────────────────────────────────
+# Scope: Horse node
+# Result: local_var:nvm_tutorial_power
+
+nvm_tutorial_get_power = {
+	nvm_get_value = { key = flag:nvm_tutorial_speed }
+	set_local_variable = { name = nvm_tutorial_power value = local_var:nvm_result }
+
+	nvm_get_value = { key = flag:nvm_tutorial_stamina }
+	change_local_variable = { name = nvm_tutorial_power add = local_var:nvm_result }
+
+	nvm_get_value = { key = flag:nvm_tutorial_endurance }
+	change_local_variable = { name = nvm_tutorial_power add = local_var:nvm_result }
+
+	nvm_get_scope = { key = flag:nvm_tutorial_jockey }
+	if = {
+		limit = { local_var:nvm_found = yes }
+		scope:nvm_scope = { nvm_get_value = { key = flag:nvm_tutorial_skill } }
+		change_local_variable = { name = nvm_tutorial_power add = local_var:nvm_result }
+	}
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Record win/loss: increment counter and append location to race history
+# ───────────────────────────────────────────────────────────────────────────────
+# Scope: Horse node
+# Parameter: $location$
+
 nvm_tutorial_record_win = {
 	nvm_change_value = { key = flag:nvm_tutorial_wins operation = add value = 1 }
-	save_scope_as = nvm_op_parent
 	nvm_get_list = { key = flag:nvm_tutorial_race_history }
 	if = {
 		limit = { local_var:nvm_found = yes }
@@ -34,7 +79,6 @@ nvm_tutorial_record_win = {
 
 nvm_tutorial_record_loss = {
 	nvm_change_value = { key = flag:nvm_tutorial_losses operation = add value = 1 }
-	save_scope_as = nvm_op_parent
 	nvm_get_list = { key = flag:nvm_tutorial_race_history }
 	if = {
 		limit = { local_var:nvm_found = yes }
@@ -42,23 +86,25 @@ nvm_tutorial_record_loss = {
 	}
 }
 
-nvm_tutorial_get_power = {
-	nvm_get_value = { key = flag:nvm_tutorial_speed }
-	set_local_variable = { name = nvm_tutorial_power value = local_var:nvm_result }
+# ───────────────────────────────────────────────────────────────────────────────
+# Record venue: add a location to the stable's venues set
+# ───────────────────────────────────────────────────────────────────────────────
+# Scope: Stable node
+# Parameter: $location$
 
-	nvm_get_value = { key = flag:nvm_tutorial_stamina }
-	change_local_variable = { name = nvm_tutorial_power add = { value = local_var:nvm_result } }
-
-	nvm_get_value = { key = flag:nvm_tutorial_endurance }
-	change_local_variable = { name = nvm_tutorial_power add = { value = local_var:nvm_result } }
-
-	nvm_get_scope = { key = flag:nvm_tutorial_jockey }
+nvm_tutorial_record_venue = {
+	nvm_get_set = { key = flag:nvm_tutorial_venues }
 	if = {
 		limit = { local_var:nvm_found = yes }
-		scope:nvm_scope = { nvm_get_value = { key = flag:nvm_tutorial_skill } }
-		change_local_variable = { name = nvm_tutorial_power add = { value = local_var:nvm_result } }
+		scope:nvm_cursor = { nvm_set_add = { value = $location$ } }
 	}
 }
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Add maintenance cost
+# ───────────────────────────────────────────────────────────────────────────────
+# Scope: Horse node
+# Parameters: $goods$, $amount$
 
 nvm_tutorial_add_maintenance_cost = {
 	nvm_get_map = { key = flag:nvm_tutorial_maintenance }
@@ -68,19 +114,53 @@ nvm_tutorial_add_maintenance_cost = {
 	}
 }
 
-nvm_tutorial_stable_add_horse = {
-	$key$ = { save_scope_as = nvm_op_key }
-	save_scope_as = nvm_op_parent
-
-	if = { limit = { is_key_in_variable_map = { name = nvm_children target = scope:nvm_op_key } }
-		remove_from_variable_map = { name = nvm_children key = scope:nvm_op_key }
-	}
-	add_to_variable_map = { name = nvm_children key = scope:nvm_op_key value = $horse$ }
-	$horse$ = {
-		add_to_variable_list = { name = nvm_parents target = scope:nvm_op_parent }
-	}
-}
+# ───────────────────────────────────────────────────────────────────────────────
+# Jockey gain XP
+# ───────────────────────────────────────────────────────────────────────────────
+# Scope: Jockey (character)
+# Parameter: $amount$
 
 nvm_tutorial_jockey_gain_xp = {
 	nvm_change_value = { key = flag:nvm_tutorial_experience operation = add value = $amount$ }
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Retire jockey: unlink from horse and clear NVM data
+# ───────────────────────────────────────────────────────────────────────────────
+# Scope: Jockey (character)
+
+nvm_tutorial_retire_jockey = {
+	nvm_get_scope = { key = flag:nvm_tutorial_mount }
+	if = {
+		limit = { local_var:nvm_found = yes }
+		scope:nvm_scope = { nvm_remove_scope = { key = flag:nvm_tutorial_jockey } }
+	}
+	nvm_remove_scope = { key = flag:nvm_tutorial_mount }
+	nvm_remove_value = { key = flag:nvm_tutorial_skill }
+	nvm_remove_value = { key = flag:nvm_tutorial_experience }
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Stable power: sum power of all horses via set iteration
+# ───────────────────────────────────────────────────────────────────────────────
+# Scope: Stable node
+# Result: local_var:nvm_tutorial_stable_power
+
+nvm_tutorial_sum_power_callback = {
+	scope:nvm_iter_item = { nvm_tutorial_get_power = yes }
+	change_local_variable = { name = nvm_tutorial_stable_power add = local_var:nvm_tutorial_power }
+}
+
+nvm_tutorial_get_stable_power = {
+	set_local_variable = { name = nvm_tutorial_stable_power value = 0 }
+	nvm_get_set = { key = flag:nvm_tutorial_horses }
+	scope:nvm_cursor = { nvm_for_each_set_item = { callback = nvm_tutorial_sum_power_callback } }
+}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Type count callback (used with nvm_for_each_of_type)
+# ───────────────────────────────────────────────────────────────────────────────
+
+nvm_tutorial_count_type_callback = {
+	change_local_variable = { name = nvm_tutorial_type_count add = 1 }
 }

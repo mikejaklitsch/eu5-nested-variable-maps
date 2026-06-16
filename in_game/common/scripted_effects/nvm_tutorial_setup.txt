@@ -1,52 +1,86 @@
 ﻿# ═══════════════════════════════════════════════════════════════════════════════
 # HORSE RACING TUTORIAL: GAME START SETUP
 # ═══════════════════════════════════════════════════════════════════════════════
-# Creates initial stables, horses, and jockeys for a few countries to
-# demonstrate the OOP data model. Runs once at game start.
+# Creates initial stables, horses, and jockeys for France and England.
+# Simulates a race, transfers a horse, and retires a jockey.
 # Grep for NVM_TUT in logs/error.log to filter output.
 
 nvm_tutorial_initialize = {
-	debug_log = "NVM_TUT === initializing horse racing ==="
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# MAINTENANCE TEMPLATES (shared cost schedules assigned to horses)
+	# ═══════════════════════════════════════════════════════════════════════
+
+	nvm_new_map = yes
+	scope:nvm_map = { save_scope_as = nvm_tutorial_warhorse_maint }
+	scope:nvm_tutorial_warhorse_maint = {
+		nvm_set_value = { key = goods:wheat value = 3 }
+		nvm_set_value = { key = goods:iron value = 2 }
+	}
+
+	nvm_new_map = yes
+	scope:nvm_map = { save_scope_as = nvm_tutorial_packhorse_maint }
+	scope:nvm_tutorial_packhorse_maint = {
+		nvm_set_value = { key = goods:wheat value = 1 }
+	}
 
 	# ═══════════════════════════════════════════════════════════════════════
 	# FRANCE'S STABLE
 	# ═══════════════════════════════════════════════════════════════════════
 
 	nvm_tutorial_new_stable = yes
-	scope:nvm_map = { save_scope_as = nvm_tutorial_fra_stable }
-	c:FRA = { set_variable = { name = nvm_tutorial_stable value = scope:nvm_tutorial_fra_stable } }
+	c:FRA = { set_variable = { name = nvm_tutorial_stable value = scope:nvm_map } }
 
 	nvm_tutorial_new_horse = { speed = 8 stamina = 6 endurance = 5 }
 	scope:nvm_map = { save_scope_as = nvm_tutorial_fra_horse_1 }
-	scope:nvm_tutorial_fra_stable = { nvm_tutorial_stable_add_horse = { key = flag:nvm_tutorial_horse_1 horse = scope:nvm_tutorial_fra_horse_1 } }
+	c:FRA = { var:nvm_tutorial_stable = { nvm_get_set = { key = flag:nvm_tutorial_horses } } }
+	scope:nvm_cursor = { nvm_set_add = { value = scope:nvm_tutorial_fra_horse_1 } }
 
 	nvm_tutorial_new_horse = { speed = 5 stamina = 9 endurance = 7 }
 	scope:nvm_map = { save_scope_as = nvm_tutorial_fra_horse_2 }
-	scope:nvm_tutorial_fra_stable = { nvm_tutorial_stable_add_horse = { key = flag:nvm_tutorial_horse_2 horse = scope:nvm_tutorial_fra_horse_2 } }
+	c:FRA = { var:nvm_tutorial_stable = { nvm_get_set = { key = flag:nvm_tutorial_horses } } }
+	scope:nvm_cursor = { nvm_set_add = { value = scope:nvm_tutorial_fra_horse_2 } }
 
-	nvm_tutorial_new_jockey = { skill = 4 }
-	scope:nvm_map = { save_scope_as = nvm_tutorial_fra_jockey }
-	scope:nvm_tutorial_fra_horse_1 = { nvm_tutorial_assign_jockey = { jockey = scope:nvm_tutorial_fra_jockey } }
+	# Stamp a character as a jockey and assign to horse 1
+	random_country = {
+		random_character = {
+			limit = { is_ruler = no }
+			save_scope_as = nvm_tutorial_fra_rider
+		}
+	}
+	scope:nvm_tutorial_fra_rider = { nvm_tutorial_init_jockey = { skill = 4 } }
+	scope:nvm_tutorial_fra_horse_1 = { nvm_tutorial_assign_jockey = { jockey = scope:nvm_tutorial_fra_rider } }
 
-	scope:nvm_tutorial_fra_horse_2 = { nvm_tutorial_set_lineage = { sire = scope:nvm_tutorial_fra_horse_1 dam = scope:nvm_tutorial_fra_horse_1 } }
+	# Set lineage on horse 2
+	scope:nvm_tutorial_fra_horse_2 = {
+		nvm_tutorial_set_lineage = { sire = scope:nvm_tutorial_fra_horse_1 dam = scope:nvm_tutorial_fra_horse_1 }
+	}
 
-	scope:nvm_tutorial_fra_horse_1 = { nvm_tutorial_add_maintenance_cost = { goods = goods:wine amount = 1 } }
+	# Assign maintenance categories using nvm_set_map (shared templates)
+	scope:nvm_tutorial_fra_horse_1 = { nvm_set_map = { key = flag:nvm_tutorial_maintenance child = scope:nvm_tutorial_warhorse_maint } }
+	scope:nvm_tutorial_fra_horse_2 = { nvm_set_map = { key = flag:nvm_tutorial_maintenance child = scope:nvm_tutorial_packhorse_maint } }
 
 	# ═══════════════════════════════════════════════════════════════════════
 	# ENGLAND'S STABLE
 	# ═══════════════════════════════════════════════════════════════════════
 
 	nvm_tutorial_new_stable = yes
-	scope:nvm_map = { save_scope_as = nvm_tutorial_eng_stable }
-	c:ENG = { set_variable = { name = nvm_tutorial_stable value = scope:nvm_tutorial_eng_stable } }
+	c:ENG = { set_variable = { name = nvm_tutorial_stable value = scope:nvm_map } }
 
 	nvm_tutorial_new_horse = { speed = 7 stamina = 7 endurance = 7 }
 	scope:nvm_map = { save_scope_as = nvm_tutorial_eng_horse_1 }
-	scope:nvm_tutorial_eng_stable = { nvm_tutorial_stable_add_horse = { key = flag:nvm_tutorial_horse_1 horse = scope:nvm_tutorial_eng_horse_1 } }
+	c:ENG = { var:nvm_tutorial_stable = { nvm_get_set = { key = flag:nvm_tutorial_horses } } }
+	scope:nvm_cursor = { nvm_set_add = { value = scope:nvm_tutorial_eng_horse_1 } }
 
-	nvm_tutorial_new_jockey = { skill = 6 }
-	scope:nvm_map = { save_scope_as = nvm_tutorial_eng_jockey }
-	scope:nvm_tutorial_eng_horse_1 = { nvm_tutorial_assign_jockey = { jockey = scope:nvm_tutorial_eng_jockey } }
+	random_country = {
+		random_character = {
+			limit = { is_ruler = no NOT = { this = scope:nvm_tutorial_fra_rider } }
+			save_scope_as = nvm_tutorial_eng_rider
+		}
+	}
+	scope:nvm_tutorial_eng_rider = { nvm_tutorial_init_jockey = { skill = 6 } }
+	scope:nvm_tutorial_eng_horse_1 = { nvm_tutorial_assign_jockey = { jockey = scope:nvm_tutorial_eng_rider } }
+	scope:nvm_tutorial_eng_horse_1 = { nvm_set_map = { key = flag:nvm_tutorial_maintenance child = scope:nvm_tutorial_warhorse_maint } }
 
 	# ═══════════════════════════════════════════════════════════════════════
 	# SIMULATE A RACE
@@ -65,20 +99,57 @@ nvm_tutorial_initialize = {
 		limit = { local_var:fra_power >= local_var:eng_power }
 		scope:nvm_tutorial_fra_horse_1 = { nvm_tutorial_record_win = { location = scope:nvm_tutorial_race_loc } }
 		scope:nvm_tutorial_eng_horse_1 = { nvm_tutorial_record_loss = { location = scope:nvm_tutorial_race_loc } }
-		scope:nvm_tutorial_fra_stable = { nvm_change_value = { key = flag:nvm_tutorial_total_wins operation = add value = 1 } }
-		scope:nvm_tutorial_eng_stable = { nvm_change_value = { key = flag:nvm_tutorial_total_losses operation = add value = 1 } }
-		scope:nvm_tutorial_fra_jockey = { nvm_tutorial_jockey_gain_xp = { amount = 2 } }
-		debug_log = "NVM_TUT France wins the race"
+		c:FRA = { var:nvm_tutorial_stable = { nvm_change_value = { key = flag:nvm_tutorial_total_wins operation = add value = 1 } } }
+		c:ENG = { var:nvm_tutorial_stable = { nvm_change_value = { key = flag:nvm_tutorial_total_losses operation = add value = 1 } } }
+		scope:nvm_tutorial_fra_rider = { nvm_tutorial_jockey_gain_xp = { amount = 2 } }
 	} else = {
 		scope:nvm_tutorial_eng_horse_1 = { nvm_tutorial_record_win = { location = scope:nvm_tutorial_race_loc } }
 		scope:nvm_tutorial_fra_horse_1 = { nvm_tutorial_record_loss = { location = scope:nvm_tutorial_race_loc } }
-		scope:nvm_tutorial_eng_stable = { nvm_change_value = { key = flag:nvm_tutorial_total_wins operation = add value = 1 } }
-		scope:nvm_tutorial_fra_stable = { nvm_change_value = { key = flag:nvm_tutorial_total_losses operation = add value = 1 } }
-		scope:nvm_tutorial_eng_jockey = { nvm_tutorial_jockey_gain_xp = { amount = 2 } }
-		debug_log = "NVM_TUT England wins the race"
+		c:ENG = { var:nvm_tutorial_stable = { nvm_change_value = { key = flag:nvm_tutorial_total_wins operation = add value = 1 } } }
+		c:FRA = { var:nvm_tutorial_stable = { nvm_change_value = { key = flag:nvm_tutorial_total_losses operation = add value = 1 } } }
+		scope:nvm_tutorial_eng_rider = { nvm_tutorial_jockey_gain_xp = { amount = 2 } }
 	}
 
+	# Record venues on both stables
+	c:FRA = { var:nvm_tutorial_stable = { nvm_tutorial_record_venue = { location = scope:nvm_tutorial_race_loc } } }
+	c:ENG = { var:nvm_tutorial_stable = { nvm_tutorial_record_venue = { location = scope:nvm_tutorial_race_loc } } }
+
+	# Train France's horse 1
 	scope:nvm_tutorial_fra_horse_1 = { nvm_tutorial_train = { stat = flag:nvm_tutorial_speed amount = 1 } }
 
-	debug_log = "NVM_TUT === initialization complete ==="
+	# ═══════════════════════════════════════════════════════════════════════
+	# TRANSFER HORSE (set remove + add)
+	# ═══════════════════════════════════════════════════════════════════════
+
+	c:FRA = { var:nvm_tutorial_stable = { nvm_get_set = { key = flag:nvm_tutorial_horses } } }
+	scope:nvm_cursor = { nvm_set_remove = { value = scope:nvm_tutorial_fra_horse_2 } }
+
+	c:ENG = { var:nvm_tutorial_stable = { nvm_get_set = { key = flag:nvm_tutorial_horses } } }
+	scope:nvm_cursor = { nvm_set_add = { value = scope:nvm_tutorial_fra_horse_2 } }
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# RETIRE JOCKEY (unlink references, clear data)
+	# ═══════════════════════════════════════════════════════════════════════
+
+	scope:nvm_tutorial_fra_rider = { nvm_tutorial_retire_jockey = yes }
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# DELETE HORSE (proper cleanup: remove from set, unlink refs, then delete)
+	# ═══════════════════════════════════════════════════════════════════════
+
+	# Remove from England's horses set
+	c:ENG = { var:nvm_tutorial_stable = { nvm_get_set = { key = flag:nvm_tutorial_horses } } }
+	scope:nvm_cursor = { nvm_set_remove = { value = scope:nvm_tutorial_fra_horse_2 } }
+
+	# Delete the horse node (wipes data, returns to pool)
+	scope:nvm_tutorial_fra_horse_2 = { nvm_delete_map = yes }
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# WEIGHTED SET (demonstrate nvm_set_add_weighted / nvm_set_get_weight)
+	# ═══════════════════════════════════════════════════════════════════════
+
+	c:FRA = { var:nvm_tutorial_stable = { nvm_get_set = { key = flag:nvm_tutorial_horses } } }
+	scope:nvm_cursor = { save_scope_as = nvm_tutorial_fra_horses_set }
+	scope:nvm_tutorial_fra_horses_set = { nvm_set_add_weighted = { value = scope:nvm_tutorial_fra_horse_1 weight = 5 } }
+
 }

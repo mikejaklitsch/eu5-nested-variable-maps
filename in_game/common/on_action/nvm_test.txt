@@ -1,86 +1,62 @@
-﻿# All output goes to logs/error.log. Grep for prefix to filter:
-#   NVM       core + stress tests
-#   NVM_CAP   engine capability probes
-#   NVM_TUT   tutorial (horse racing)
+﻿# All output goes to logs/debug.log. Grep for prefix to filter:
 #   NVM_PAR   parallel safety tests
-on_game_start = {
-	on_actions = {
-		nvm_run_tests_startup
-		nvm_run_capability_tests_action
-		nvm_run_tutorial_action
-		nvm_parallel_setup_action
-	}
+# All other test suites are silent on success (assert_if only).
+
+# Tests disabled for release — uncomment to run
+# on_game_start = {
+# 	on_actions = {
+# 		nvm_run_unit_tests_action
+# 		nvm_run_functional_tests_action
+# 		nvm_run_engine_tests_action
+# 		nvm_run_stress_tests_action
+# 		nvm_run_tutorial_action
+# 		nvm_parallel_setup_action
+# 	}
+# }
+
+# monthly_country_pulse = {
+# 	on_actions = { nvm_parallel_dispatch }
+# }
+
+# weather_monthly_pulse = {
+# 	on_actions = {
+# 		nvm_parallel_verify_action
+# 	}
+# }
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SUITE DISPATCHERS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+nvm_run_unit_tests_action = {
+	effect = { nvm_run_unit_tests = yes }
 }
 
-#weather_monthly_pulse = {
-#	on_actions = { nvm_run_tests_monthly nvm_run_absurd_stress }
-#}
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# PARALLEL SAFETY TESTS
-# ═══════════════════════════════════════════════════════════════════════════════
-# Uncomment the monthly_country_pulse block below to run parallel safety tests.
-# These use events = { } dispatch for engine-level parallelization by country.
-#
-# Structure:
-#   1. weather_monthly_pulse fires nvm_parallel_setup (sequential, on_actions)
-#   2. monthly_country_pulse fires nvm_parallel_dispatch (parallel, events)
-#   3. Next weather_monthly_pulse fires nvm_parallel_verify (sequential)
-#
-# Grep for NVM_PAR in logs/error.log to filter output.
-#
-monthly_country_pulse = {
-	on_actions = { nvm_parallel_dispatch }
+nvm_run_functional_tests_action = {
+	effect = { nvm_run_functional_tests = yes }
 }
 
-weather_monthly_pulse = {
-	on_actions = {
-		nvm_parallel_verify_action
-		nvm_parallel_clobber_action
-	}
+nvm_run_engine_tests_action = {
+	effect = { nvm_run_engine_tests = yes }
 }
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# CORE TEST DISPATCH
-# ═══════════════════════════════════════════════════════════════════════════════
+nvm_run_stress_tests_action = {
+	effect = { nvm_run_stress_tests = yes }
+}
 
-nvm_run_tests_startup = {
+nvm_run_tutorial_action = {
 	effect = {
-		debug_log = "NVM === game_start ==="
-		nvm_run_tests_implementation = yes
-		debug_log = "NVM === stress ==="
-		nvm_run_stress_tests = yes
-	}
-}
-
-nvm_run_tests_monthly = {
-	trigger = { NOT = { has_global_variable = nvm_monthly_done } }
-	effect = {
-		set_global_variable = nvm_monthly_done
-		debug_log = "NVM === monthly_pulse ==="
-		nvm_run_tests_implementation = yes
-	}
-}
-
-# 200k stress test. Opt-in only: extremely resource-heavy, creates 200,000
-# dead characters. Uncomment the weather_monthly_pulse hook above to enable.
-nvm_run_absurd_stress = {
-	trigger = {
-		has_global_variable = nvm_monthly_done
-	}
-	effect = {
-		nvm_run_absurd_stress_impl = yes
+		nvm_tutorial_initialize = yes
+		nvm_tutorial_run_tests = yes
 	}
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# PARALLEL TEST ON_ACTIONS
+# PARALLEL TESTS
 # ═══════════════════════════════════════════════════════════════════════════════
 
 nvm_parallel_setup_action = {
-	effect = {
-		nvm_parallel_setup_impl = yes
-	}
+	effect = { nvm_parallel_setup_impl = yes }
 }
 
 nvm_parallel_dispatch = {
@@ -101,36 +77,5 @@ nvm_parallel_verify_action = {
 		} else = {
 			set_global_variable = nvm_par_skip_first
 		}
-	}
-}
-
-nvm_parallel_clobber_action = {
-	trigger = { NOT = { has_global_variable = nvm_par_clobber_done } }
-	effect = {
-		nvm_every_country_clobber_test = yes
-		set_global_variable = nvm_par_clobber_done
-	}
-}
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# ENGINE CAPABILITY PROBES
-# ═══════════════════════════════════════════════════════════════════════════════
-# Grep for NVM_CAP in logs/error.log to filter output.
-
-nvm_run_capability_tests_action = {
-	effect = {
-		nvm_run_capability_tests = yes
-	}
-}
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# TUTORIAL (HORSE RACING)
-# ═══════════════════════════════════════════════════════════════════════════════
-# Grep for NVM_TUT in logs/error.log to filter output.
-
-nvm_run_tutorial_action = {
-	effect = {
-		nvm_tutorial_initialize = yes
-		nvm_tutorial_run_tests = yes
 	}
 }

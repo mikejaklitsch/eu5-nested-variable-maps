@@ -1,0 +1,487 @@
+﻿# ═══════════════════════════════════════════════════════════════════════════════
+# ENGINE TESTS
+# ═══════════════════════════════════════════════════════════════════════════════
+# Probes for EU5 engine behaviors that NVM depends on. Each block tests
+# a specific engine capability. Failures indicate the engine does not
+# support the feature, not that NVM code is wrong.
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LOCAL VARIABLE SCOPE STORAGE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+nvm_test_engine_local_var_scope = {
+	nvm_new_map = yes
+	scope:nvm_map = { save_temporary_scope_as = nvm_cap_node }
+	set_local_variable = { name = v value = 42 }
+	scope:nvm_cap_node = { nvm_set_value = { key = goods:wheat value = local_var:v } }
+
+	set_local_variable = { name = my_ref value = scope:nvm_cap_node }
+
+	local_var:my_ref = { nvm_get_value = { key = goods:wheat } }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 42 } } text = "C2 local_var scope-into read got [SCOPE.GetLocalVariable('nvm_result').GetValue|2]" }
+
+	set_local_variable = { name = v value = 99 }
+	local_var:my_ref = { nvm_set_value = { key = goods:iron value = local_var:v } }
+	local_var:my_ref = { nvm_get_value = { key = goods:iron } }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 99 } } text = "C3 local_var scope-into write got [SCOPE.GetLocalVariable('nvm_result').GetValue|2]" }
+
+	local_var:my_ref = {
+		assert_if = { limit = { NOT = { this = scope:nvm_cap_node } } text = "C4 local_var identity" }
+	}
+
+	nvm_new_map = yes
+	scope:nvm_map = { save_temporary_scope_as = nvm_cap_node_2 }
+	set_local_variable = { name = v value = 77 }
+	scope:nvm_cap_node_2 = { nvm_set_value = { key = goods:silk value = local_var:v } }
+	set_local_variable = { name = my_ref value = scope:nvm_cap_node_2 }
+	local_var:my_ref = { nvm_get_value = { key = goods:silk } }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 77 } } text = "C5 local_var reassignment got [SCOPE.GetLocalVariable('nvm_result').GetValue|2]" }
+
+	scope:nvm_cap_node = { set_variable = { name = test_ref value = local_var:my_ref } }
+	scope:nvm_cap_node = {
+		var:test_ref = { nvm_get_value = { key = goods:silk } }
+	}
+	assert_if = { limit = { NOT = { local_var:nvm_result = 77 } } text = "C6 local_var as set_variable value got [SCOPE.GetLocalVariable('nvm_result').GetValue|2]" }
+
+	scope:nvm_cap_node = { nvm_delete_tree = yes }
+	scope:nvm_cap_node_2 = { nvm_delete_tree = yes }
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LOCAL VARIABLE MAP EXPRESSION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+nvm_test_engine_local_var_map = {
+	nvm_new_map = yes
+	scope:nvm_map = { save_temporary_scope_as = nvm_cap_parent }
+	scope:nvm_cap_parent = { nvm_get_or_set_map = { key = goods:wheat } }
+	scope:nvm_cursor = { save_temporary_scope_as = nvm_cap_child }
+	set_local_variable = { name = v value = 55 }
+	scope:nvm_cap_child = { nvm_set_value = { key = goods:iron value = local_var:v } }
+
+	scope:nvm_cap_parent = {
+		set_local_variable = { name = child_ref value = "variable_map(nvm_children|goods:wheat)" }
+	}
+
+	local_var:child_ref = { nvm_get_value = { key = goods:iron } }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 55 } } text = "C11 variable_map into local_var scope-into got [SCOPE.GetLocalVariable('nvm_result').GetValue|2]" }
+
+	local_var:child_ref = {
+		assert_if = { limit = { NOT = { this = scope:nvm_cap_child } } text = "C12 variable_map local_var identity" }
+	}
+
+	set_local_variable = { name = v value = 88 }
+	local_var:child_ref = { nvm_set_value = { key = goods:silk value = local_var:v } }
+	scope:nvm_cap_child = { nvm_get_value = { key = goods:silk } }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 88 } } text = "C13 write through variable_map local_var got [SCOPE.GetLocalVariable('nvm_result').GetValue|2]" }
+
+	scope:nvm_cap_parent = { nvm_delete_tree = yes }
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SCRIPTED EFFECT SCOPE CHAIN
+# ═══════════════════════════════════════════════════════════════════════════════
+
+nvm_cap_scope_chain_check = {
+	assert_if = { limit = { NOT = { this = scope:nvm_cap_target_node } } text = "C20a 'this' inside scripted effect" }
+}
+
+nvm_cap_root_check = {
+	nvm_get_value = { key = goods:wheat }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 42 } } text = "C22 scripted effect from country block got [SCOPE.GetLocalVariable('nvm_result').GetValue|2]" }
+}
+
+nvm_cap_set_local_return = {
+	set_local_variable = { name = nvm_cap_returned value = 999 }
+}
+
+nvm_cap_nested_outer = {
+	nvm_cap_nested_inner = yes
+}
+
+nvm_cap_nested_inner = {
+	set_local_variable = { name = nvm_cap_deep_val value = 777 }
+}
+
+nvm_test_engine_scope_chain = {
+	nvm_new_map = yes
+	scope:nvm_map = { save_temporary_scope_as = nvm_cap_target_node }
+	set_local_variable = { name = v value = 42 }
+	scope:nvm_cap_target_node = { nvm_set_value = { key = goods:wheat value = local_var:v } }
+
+	scope:nvm_cap_target_node = { nvm_cap_scope_chain_check = yes }
+
+	random_country = {
+		limit = { is_real_country = yes }
+		scope:nvm_cap_target_node = { nvm_cap_root_check = yes }
+	}
+
+	scope:nvm_cap_target_node = { nvm_cap_set_local_return = yes }
+	assert_if = { limit = { NOT = { local_var:nvm_cap_returned = 999 } } text = "C23 local_var from scripted effect visible to caller got [SCOPE.GetLocalVariable('nvm_cap_returned').GetValue|0]" }
+
+	scope:nvm_cap_target_node = { nvm_cap_nested_outer = yes }
+	assert_if = { limit = { NOT = { local_var:nvm_cap_deep_val = 777 } } text = "C24 local_var from nested scripted effect visible to caller got [SCOPE.GetLocalVariable('nvm_cap_deep_val').GetValue|0]" }
+
+	scope:nvm_cap_target_node = { nvm_delete_tree = yes }
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LOCAL VARIABLE AS MAP KEY
+# ═══════════════════════════════════════════════════════════════════════════════
+
+nvm_test_engine_local_var_key = {
+	nvm_new_map = yes
+	scope:nvm_map = { save_temporary_scope_as = nvm_cap_key_node }
+
+	set_local_variable = { name = my_key value = goods:wheat }
+	scope:nvm_cap_key_node = {
+		add_to_variable_map = { name = nvm_values key = local_var:my_key value = 42 }
+	}
+	scope:nvm_cap_key_node = {
+		assert_if = {
+			limit = { NOT = { is_key_in_variable_map = { name = nvm_values target = local_var:my_key } } }
+			text = "C30 local_var as map key"
+		}
+	}
+
+	scope:nvm_cap_key_node = {
+		set_local_variable = { name = read_val value = "variable_map(nvm_values|local_var:my_key)" }
+	}
+	assert_if = { limit = { NOT = { local_var:read_val = 42 } } text = "C31 variable_map read with local_var key got [SCOPE.GetLocalVariable('read_val').GetValue|0]" }
+
+	scope:nvm_cap_key_node = {
+		remove_from_variable_map = { name = nvm_values key = local_var:my_key }
+	}
+	scope:nvm_cap_key_node = {
+		assert_if = {
+			limit = { is_key_in_variable_map = { name = nvm_values target = local_var:my_key } }
+			text = "C32 remove with local_var key"
+		}
+	}
+
+	scope:nvm_cap_key_node = { nvm_delete_map = yes }
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SAVE_TEMPORARY_SCOPE_AS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+nvm_test_engine_temp_scope = {
+	nvm_new_map = yes
+	scope:nvm_map = { save_temporary_scope_as = nvm_tmp_node }
+	set_local_variable = { name = v value = 42 }
+	scope:nvm_tmp_node = { nvm_set_value = { key = goods:wheat value = local_var:v } }
+	scope:nvm_tmp_node = { nvm_get_value = { key = goods:wheat } }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 42 } } text = "T120 temp scope basic write got [SCOPE.GetLocalVariable('nvm_result').GetValue|2]" }
+
+	scope:nvm_tmp_node = {
+		add_to_variable_map = { name = nvm_values key = goods:iron value = 77 }
+	}
+	scope:nvm_tmp_node = {
+		assert_if = {
+			limit = { NOT = { is_key_in_variable_map = { name = nvm_values target = goods:iron } } }
+			text = "T121 temp scope raw add_to_variable_map"
+		}
+	}
+
+	set_local_variable = { name = v value = 55 }
+	scope:nvm_tmp_node = { nvm_set_value = { key = goods:cloth value = local_var:v } }
+	set_local_variable = { name = dummy value = 0 }
+	scope:nvm_tmp_node = { nvm_get_value = { key = goods:cloth } }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 55 } } text = "T122 temp scope re-entry write got [SCOPE.GetLocalVariable('nvm_result').GetValue|2]" }
+
+	scope:nvm_tmp_node = { nvm_get_or_set_map = { key = goods:wine } }
+	set_local_variable = { name = v value = 33 }
+	scope:nvm_cursor = { nvm_set_value = { key = goods:tea value = local_var:v } }
+	scope:nvm_tmp_node = { nvm_get_map = { key = goods:wine } }
+	assert_if = { limit = { local_var:nvm_found = no } text = "T123a temp scope child not found got [SCOPE.GetLocalVariable('nvm_found').GetValue|0]" }
+	scope:nvm_cursor = { nvm_get_value = { key = goods:tea } }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 33 } } text = "T123b temp scope child value got [SCOPE.GetLocalVariable('nvm_result').GetValue|2]" }
+
+	scope:nvm_tmp_node = { nvm_get_map = { key = goods:wine } }
+	scope:nvm_cursor = { save_temporary_scope_as = nvm_tmp_child }
+	set_local_variable = { name = v value = 88 }
+	scope:nvm_tmp_child = { nvm_set_value = { key = goods:paper value = local_var:v } }
+	scope:nvm_tmp_child = { nvm_get_value = { key = goods:paper } }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 88 } } text = "T124 temp scope child write got [SCOPE.GetLocalVariable('nvm_result').GetValue|2]" }
+
+	scope:nvm_map = { save_scope_as = nvm_perm_node }
+	set_local_variable = { name = v value = 42 }
+	scope:nvm_perm_node = { nvm_set_value = { key = goods:fur value = local_var:v } }
+	scope:nvm_perm_node = { nvm_get_value = { key = goods:fur } }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 42 } } text = "T125 control save_scope_as got [SCOPE.GetLocalVariable('nvm_result').GetValue|2]" }
+
+	scope:nvm_tmp_node = { nvm_set_scope = { key = goods:fur value = scope:nvm_test_capital } }
+	scope:nvm_tmp_node = { nvm_get_scope = { key = goods:fur } }
+	assert_if = { limit = { local_var:nvm_found = no } text = "T126a temp scope get_scope found got [SCOPE.GetLocalVariable('nvm_found').GetValue|0]" }
+	scope:nvm_scope = {
+		assert_if = { limit = { NOT = { this = scope:nvm_test_capital } } text = "T126b temp scope ref identity" }
+	}
+
+	scope:nvm_tmp_node = { nvm_delete_tree = yes }
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DEAD CHARACTER STORAGE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+nvm_test_engine_dead_char = {
+	if = {
+		limit = { has_global_variable = nvm_dead_char_persist }
+		global_var:nvm_dead_char_persist = {
+			assert_if = {
+				limit = { NOT = { is_key_in_variable_map = { name = nvm_char_test target = goods:wheat } } }
+				text = "T100a dead char months later map: expected key"
+			}
+		}
+		global_var:nvm_dead_char_persist = {
+			set_local_variable = { name = nvm_result value = "variable_map(nvm_char_test|goods:wheat)" }
+		}
+		assert_if = { limit = { NOT = { local_var:nvm_result = 42 } } text = "T100b dead char months later read: expected 42 got [SCOPE.GetLocalVariable('nvm_result').GetValue|2]" }
+		set_local_variable = { name = r value = global_var:nvm_dead_char_persist.var:nvm_char_flag }
+		assert_if = { limit = { NOT = { local_var:r = 777 } } text = "T100c dead char months later var: expected 777 got [SCOPE.GetLocalVariable('r').GetValue|0]" }
+	}
+
+	random_country = {
+		limit = { is_ai = yes }
+		create_character = { save_temporary_scope_as = nvm_test_char }
+	}
+	if = {
+		limit = { NOT = { exists = scope:nvm_test_char } }
+		random_country = {
+			create_character = { save_temporary_scope_as = nvm_test_char }
+		}
+	}
+	scope:nvm_test_char = {
+		add_to_variable_map = { name = nvm_char_test key = goods:wheat value = 42 }
+		add_to_variable_map = { name = nvm_char_test key = goods:iron value = 99 }
+		set_variable = { name = nvm_char_flag value = 777 }
+	}
+	kill_character_silently = scope:nvm_test_char
+
+	scope:nvm_test_char = {
+		assert_if = {
+			limit = { NOT = { is_key_in_variable_map = { name = nvm_char_test target = goods:wheat } } }
+			text = "T98a dead char map exists: expected key"
+		}
+	}
+	scope:nvm_test_char = {
+		set_local_variable = { name = nvm_result value = "variable_map(nvm_char_test|goods:wheat)" }
+	}
+	assert_if = { limit = { NOT = { local_var:nvm_result = 42 } } text = "T98b dead char map read: expected 42 got [SCOPE.GetLocalVariable('nvm_result').GetValue|2]" }
+
+	set_local_variable = { name = r value = scope:nvm_test_char.var:nvm_char_flag }
+	assert_if = { limit = { NOT = { local_var:r = 777 } } text = "T98c dead char var: expected 777 got [SCOPE.GetLocalVariable('r').GetValue|0]" }
+
+	scope:nvm_test_char = {
+		add_to_variable_map = { name = nvm_char_test key = goods:silk value = 55 }
+	}
+	scope:nvm_test_char = {
+		assert_if = {
+			limit = { NOT = { is_key_in_variable_map = { name = nvm_char_test target = goods:silk } } }
+			text = "T99 dead char post-mortem write: expected key"
+		}
+	}
+
+	set_global_variable = { name = nvm_dead_char_persist value = scope:nvm_test_char }
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# VARIABLE MAP SIZE AS VALUE
+# ═══════════════════════════════════════════════════════════════════════════════
+# Tests whether variable_map_size can be read as a value (not just compared).
+
+nvm_test_engine_map_size = {
+	nvm_new_map = yes
+	scope:nvm_map = { save_temporary_scope_as = nvm_size_test }
+	scope:nvm_size_test = { nvm_set_value = { key = goods:wheat value = 1 } }
+	scope:nvm_size_test = { nvm_set_value = { key = goods:iron value = 2 } }
+	scope:nvm_size_test = { nvm_set_value = { key = goods:silk value = 3 } }
+
+	# Approach 1: trigger as comparison (known to work)
+	scope:nvm_size_test = {
+		assert_if = {
+			limit = { NOT = { variable_map_size = { name = nvm_values value = 3 } } }
+			text = "map_size trigger comparison: expected 3"
+		}
+	}
+
+	# Approach 2: variable_map_size(name) as script value is NOT supported.
+	# The engine rejects the function-call syntax in math context.
+	# Leaving this documented as a known limitation.
+
+	scope:nvm_size_test = { nvm_delete_map = yes }
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SAVE/LOAD PERSISTENCE
+# ═══════════════════════════════════════════════════════════════════════════════
+# Two-phase test: setup phase stores NVM data in global variables.
+# On reload, verify phase checks the data survived serialization.
+# Requires manual save and reload between runs.
+
+nvm_test_engine_persist_count = {
+	change_local_variable = { name = nvm_persist_count add = 1 }
+}
+
+nvm_test_engine_save_load = {
+	if = {
+		limit = { has_global_variable = nvm_persist_test_ready }
+
+		# VERIFY: data from previous session should be intact
+		global_var:nvm_persist_root = { nvm_get_value = { key = goods:wheat } }
+		assert_if = { limit = { NOT = { local_var:nvm_result = 42 } } text = "persist value: expected 42 got [SCOPE.GetLocalVariable('nvm_result').GetValue|2]" }
+
+		global_var:nvm_persist_root = { nvm_get_map = { key = goods:iron } }
+		assert_if = { limit = { local_var:nvm_found = no } text = "persist child: expected found got [SCOPE.GetLocalVariable('nvm_found').GetValue|0]" }
+		scope:nvm_cursor = { nvm_get_value = { key = goods:silk } }
+		assert_if = { limit = { NOT = { local_var:nvm_result = 77 } } text = "persist child value: expected 77 got [SCOPE.GetLocalVariable('nvm_result').GetValue|2]" }
+
+		global_var:nvm_persist_root = { nvm_get_scope = { key = goods:cloth } }
+		assert_if = { limit = { local_var:nvm_found = no } text = "persist scope ref: expected found got [SCOPE.GetLocalVariable('nvm_found').GetValue|0]" }
+
+		global_var:nvm_persist_root = { nvm_is_type = { type = flag:nvm_persist_type } }
+		assert_if = { limit = { local_var:nvm_found = no } text = "persist type: expected found got [SCOPE.GetLocalVariable('nvm_found').GetValue|0]" }
+
+		global_var:nvm_persist_root = { nvm_get_list = { key = goods:tea } }
+		assert_if = { limit = { local_var:nvm_found = no } text = "persist list: expected found got [SCOPE.GetLocalVariable('nvm_found').GetValue|0]" }
+		scope:nvm_cursor = {
+			assert_if = { limit = { NOT = { var:nvm_list_size = 2 } } text = "persist list size: expected 2 got [SCOPE.GetVariable('nvm_list_size').GetValue|0]" }
+		}
+		scope:nvm_cursor = { nvm_list_get = { index = 0 } }
+		scope:nvm_scope = {
+			assert_if = { limit = { NOT = { this = goods:wheat } } text = "persist list[0]: expected wheat" }
+		}
+
+		global_var:nvm_persist_root = { nvm_get_set = { key = goods:wine } }
+		assert_if = { limit = { local_var:nvm_found = no } text = "persist set: expected found got [SCOPE.GetLocalVariable('nvm_found').GetValue|0]" }
+		scope:nvm_cursor = { nvm_set_has = { value = goods:fur } }
+		assert_if = { limit = { local_var:nvm_found = no } text = "persist set member: expected found got [SCOPE.GetLocalVariable('nvm_found').GetValue|0]" }
+
+		global_var:nvm_persist_root = { nvm_is_valid = yes }
+		assert_if = { limit = { local_var:nvm_found = no } text = "persist pool tracking: expected valid got [SCOPE.GetLocalVariable('nvm_found').GetValue|0]" }
+
+		set_local_variable = { name = nvm_persist_count value = 0 }
+		nvm_for_each_of_type = { type = flag:nvm_persist_type callback = nvm_test_engine_persist_count }
+		assert_if = { limit = { NOT = { local_var:nvm_persist_count >= 1 } } text = "persist registry: expected >= 1 got [SCOPE.GetLocalVariable('nvm_persist_count').GetValue|0]" }
+
+		global_var:nvm_persist_root = { nvm_delete_tree = yes }
+		remove_global_variable = nvm_persist_root
+		remove_global_variable = nvm_persist_test_ready
+	}
+
+	# SETUP: create data that should survive save/load
+	nvm_new_map = yes
+	scope:nvm_map = { save_temporary_scope_as = nvm_persist_node }
+
+	set_local_variable = { name = v value = 42 }
+	scope:nvm_persist_node = { nvm_set_value = { key = goods:wheat value = local_var:v } }
+
+	scope:nvm_persist_node = { nvm_get_or_set_map = { key = goods:iron } }
+	set_local_variable = { name = v value = 77 }
+	scope:nvm_cursor = { nvm_set_value = { key = goods:silk value = local_var:v } }
+
+	random_country = {
+		limit = { is_real_country = yes }
+		capital = { save_temporary_scope_as = nvm_persist_scope_target }
+	}
+	scope:nvm_persist_node = { nvm_set_scope = { key = goods:cloth value = scope:nvm_persist_scope_target } }
+
+	scope:nvm_persist_node = { nvm_set_type = { type = flag:nvm_persist_type } }
+
+	scope:nvm_persist_node = { nvm_get_or_set_list = { key = goods:tea } }
+	scope:nvm_cursor = { nvm_list_add = { value = goods:wheat } }
+	scope:nvm_cursor = { nvm_list_add = { value = goods:iron } }
+
+	scope:nvm_persist_node = { nvm_get_or_set_set = { key = goods:wine } }
+	scope:nvm_cursor = { nvm_set_add = { value = goods:fur } }
+	scope:nvm_cursor = { nvm_set_add = { value = goods:silk } }
+
+	set_global_variable = { name = nvm_persist_root value = scope:nvm_persist_node }
+	set_global_variable = { name = nvm_persist_test_ready value = yes }
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DANGLING SCOPE REFERENCES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+nvm_test_engine_dangling_scope = {
+	nvm_new_map = yes
+	scope:nvm_map = { save_temporary_scope_as = nvm_dang_holder }
+	nvm_new_map = yes
+	scope:nvm_map = { save_temporary_scope_as = nvm_dang_target }
+
+	set_local_variable = { name = v value = 42 }
+	scope:nvm_dang_target = { nvm_set_value = { key = goods:wheat value = local_var:v } }
+	scope:nvm_dang_holder = { nvm_set_scope = { key = goods:wheat value = scope:nvm_dang_target } }
+
+	# Delete the target
+	scope:nvm_dang_target = { nvm_delete_map = yes }
+
+	# Scope entry in holder should still exist (ref not auto-cleaned)
+	scope:nvm_dang_holder = { nvm_get_scope = { key = goods:wheat } }
+	assert_if = { limit = { local_var:nvm_found = no } text = "dangling scope entry: expected found got [SCOPE.GetLocalVariable('nvm_found').GetValue|0]" }
+
+	# Target should no longer be a valid NVM node
+	scope:nvm_scope = { nvm_is_valid = yes }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "dangling target validity: expected not valid got [SCOPE.GetLocalVariable('nvm_found').GetValue|0]" }
+
+	# Target's data should be wiped
+	scope:nvm_scope = { nvm_has_value = { key = goods:wheat } }
+	assert_if = { limit = { local_var:nvm_found = yes } text = "dangling target data: expected wiped got [SCOPE.GetLocalVariable('nvm_found').GetValue|0]" }
+
+	scope:nvm_dang_holder = { nvm_delete_map = yes }
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# INIT POOL IDEMPOTENCY
+# ═══════════════════════════════════════════════════════════════════════════════
+
+nvm_test_engine_init_idempotent = {
+	set_local_variable = { name = size_before value = global_var:nvm_pool_size }
+
+	nvm_new_map = yes
+	scope:nvm_map = { save_temporary_scope_as = nvm_idem_node }
+	set_local_variable = { name = v value = 42 }
+	scope:nvm_idem_node = { nvm_set_value = { key = goods:wheat value = local_var:v } }
+	scope:nvm_idem_node = { nvm_set_type = { type = flag:nvm_idem_type } }
+
+	# Call init again: should be a no-op
+	nvm_init_pool = yes
+
+	# Pool size should not have been reset
+	assert_if = { limit = { NOT = { global_var:nvm_pool_size >= local_var:size_before } } text = "idempotent pool_size: expected >= before" }
+
+	# Node should still be functional
+	scope:nvm_idem_node = { nvm_get_value = { key = goods:wheat } }
+	assert_if = { limit = { NOT = { local_var:nvm_result = 42 } } text = "idempotent node data: expected 42 got [SCOPE.GetLocalVariable('nvm_result').GetValue|2]" }
+
+	# Type should survive
+	scope:nvm_idem_node = { nvm_is_type = { type = flag:nvm_idem_type } }
+	assert_if = { limit = { local_var:nvm_found = no } text = "idempotent type: expected found got [SCOPE.GetLocalVariable('nvm_found').GetValue|0]" }
+
+	# Registry should still work
+	set_local_variable = { name = nvm_type_count value = 0 }
+	nvm_for_each_of_type = { type = flag:nvm_idem_type callback = nvm_test_count_type }
+	assert_if = { limit = { NOT = { local_var:nvm_type_count = 1 } } text = "idempotent registry query: expected 1 got [SCOPE.GetLocalVariable('nvm_type_count').GetValue|0]" }
+
+	scope:nvm_idem_node = { nvm_delete_map = yes }
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DISPATCHER
+# ═══════════════════════════════════════════════════════════════════════════════
+
+nvm_run_engine_tests = {
+	nvm_init_pool = yes
+	nvm_test_engine_local_var_scope = yes
+	nvm_test_engine_local_var_map = yes
+	nvm_test_engine_scope_chain = yes
+	nvm_test_engine_local_var_key = yes
+	nvm_test_engine_temp_scope = yes
+	nvm_test_engine_dead_char = yes
+	nvm_test_engine_map_size = yes
+	nvm_test_engine_save_load = yes
+	nvm_test_engine_dangling_scope = yes
+	nvm_test_engine_init_idempotent = yes
+}

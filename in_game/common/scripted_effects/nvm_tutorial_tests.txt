@@ -1,127 +1,470 @@
 ﻿# ═══════════════════════════════════════════════════════════════════════════════
 # HORSE RACING TUTORIAL: VALIDATION TESTS
 # ═══════════════════════════════════════════════════════════════════════════════
-# Runs after nvm_tutorial_initialize to verify the OOP data model works.
+# Runs after nvm_tutorial_initialize to verify the data model.
 # Grep for NVM_TUT in logs/error.log to filter output.
 
 nvm_tutorial_run_tests = {
-	debug_log = "NVM_TUT === running tests ==="
+
+	set_local_variable = { name = nvm_tut_failures value = 0 }
+	set_local_variable = { name = nvm_tut_total value = 0 }
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# DOT-CHAIN SYNTAX VERIFICATION
+	# Both dot-chaining and brace scoping work at runtime. Dot-chaining
+	# produces parse-time "Unknown effect" warnings because the engine's
+	# static analyzer can't resolve dynamic scopes. Brace scoping is
+	# recommended to keep logs clean. These tests verify dot-chaining works.
+	# ═══════════════════════════════════════════════════════════════════════
+
+	# T0a: dot-chain through saved scope into NVM effect
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	scope:nvm_tutorial_fra_horse_1.nvm_get_value = { key = flag:nvm_tutorial_speed }
+	if = { limit = { NOT = { local_var:nvm_result >= 1 } }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T0a FAIL dot-chain scope.effect"
+	}
+
+	# T0b: dot-chain through country variable into NVM effect
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	c:FRA.var:nvm_tutorial_stable.nvm_get_value = { key = flag:nvm_tutorial_total_wins }
+	if = { limit = { NOT = { local_var:nvm_result >= 0 } }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T0b FAIL dot-chain country.var.effect"
+	}
+
+	# T0c: dot-chain into set operation
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	c:FRA.var:nvm_tutorial_stable.nvm_get_set = { key = flag:nvm_tutorial_horses }
+	scope:nvm_cursor.nvm_set_has = { value = scope:nvm_tutorial_fra_horse_1 }
+	if = { limit = { local_var:nvm_found = no }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T0c FAIL dot-chain set operation"
+	}
 
 	# ═══════════════════════════════════════════════════════════════════════
 	# TYPE CHECKS
 	# ═══════════════════════════════════════════════════════════════════════
 
-	c:FRA = {
-		var:nvm_tutorial_stable = { nvm_is_type = { type = flag:nvm_tutorial_stable } }
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	c:FRA = { var:nvm_tutorial_stable = { nvm_is_type = { type = flag:nvm_tutorial_stable } } }
+	if = { limit = { local_var:nvm_found = no }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T1 FAIL stable type: expected nvm_tutorial_stable"
 	}
-	assert_if = { limit = { local_var:nvm_found = no } text = "NVM_TUT T1 stable type: expected nvm_tutorial_stable" }
 
-	c:FRA = {
-		var:nvm_tutorial_stable = { nvm_get_map = { key = flag:nvm_tutorial_horse_1 } }
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	scope:nvm_tutorial_fra_horse_1 = { nvm_is_type = { type = flag:nvm_tutorial_horse } }
+	if = { limit = { local_var:nvm_found = no }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T2 FAIL horse type: expected nvm_tutorial_horse"
 	}
-	scope:nvm_cursor = { nvm_is_type = { type = flag:nvm_tutorial_horse } }
-	assert_if = { limit = { local_var:nvm_found = no } text = "NVM_TUT T2 horse type: expected nvm_tutorial_horse" }
 
-	scope:nvm_cursor = { nvm_is_type = { type = flag:nvm_tutorial_jockey } }
-	assert_if = { limit = { local_var:nvm_found = yes } text = "NVM_TUT T3 wrong type: expected not found" }
-
-	# ═══════════════════════════════════════════════════════════════════════
-	# STAT READS
-	# ═══════════════════════════════════════════════════════════════════════
-
-	c:FRA = {
-		var:nvm_tutorial_stable = { nvm_get_map = { key = flag:nvm_tutorial_horse_1 } }
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	scope:nvm_tutorial_fra_horse_1 = { nvm_is_type = { type = flag:nvm_tutorial_jockey } }
+	if = { limit = { local_var:nvm_found = yes }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T3 FAIL wrong type: horse should not be jockey"
 	}
-	scope:nvm_cursor = { save_scope_as = nvm_tutorial_t_horse }
-	scope:nvm_tutorial_t_horse = { nvm_get_value = { key = flag:nvm_tutorial_speed } }
-	assert_if = { limit = { NOT = { local_var:nvm_result = 9 } } text = "NVM_TUT T4 speed after training: expected 9" }
-
-	scope:nvm_tutorial_t_horse = { nvm_get_value = { key = flag:nvm_tutorial_stamina } }
-	assert_if = { limit = { NOT = { local_var:nvm_result = 6 } } text = "NVM_TUT T5 stamina: expected 6" }
 
 	# ═══════════════════════════════════════════════════════════════════════
-	# JOCKEY LINK
+	# STAT READS (horse 1 was trained: speed 8+1=9)
 	# ═══════════════════════════════════════════════════════════════════════
 
-	scope:nvm_tutorial_t_horse = { nvm_get_scope = { key = flag:nvm_tutorial_jockey } }
-	assert_if = { limit = { local_var:nvm_found = no } text = "NVM_TUT T6 jockey exists: expected found" }
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	scope:nvm_tutorial_fra_horse_1 = { nvm_get_value = { key = flag:nvm_tutorial_speed } }
+	if = { limit = { NOT = { local_var:nvm_result = 9 } }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T4 FAIL speed after training: expected 9 got [SCOPE.GetLocalVariable('nvm_result').GetValue|2]"
+	}
 
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	scope:nvm_tutorial_fra_horse_1 = { nvm_get_value = { key = flag:nvm_tutorial_stamina } }
+	if = { limit = { NOT = { local_var:nvm_result = 6 } }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T5 FAIL stamina: expected 6 got [SCOPE.GetLocalVariable('nvm_result').GetValue|2]"
+	}
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# JOCKEY LINK (tested on England's horse; France's jockey was retired)
+	# ═══════════════════════════════════════════════════════════════════════
+
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	scope:nvm_tutorial_eng_horse_1 = { nvm_get_scope = { key = flag:nvm_tutorial_jockey } }
+	if = { limit = { local_var:nvm_found = no }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T6 FAIL jockey exists: expected found"
+	}
+
+	change_local_variable = { name = nvm_tut_total add = 1 }
 	scope:nvm_scope = { nvm_is_type = { type = flag:nvm_tutorial_jockey } }
-	assert_if = { limit = { local_var:nvm_found = no } text = "NVM_TUT T7 jockey type: expected nvm_tutorial_jockey" }
+	if = { limit = { local_var:nvm_found = no }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T7 FAIL jockey type: expected nvm_tutorial_jockey"
+	}
 
+	change_local_variable = { name = nvm_tut_total add = 1 }
 	scope:nvm_scope = { save_scope_as = nvm_tutorial_t_jockey }
 	scope:nvm_tutorial_t_jockey = { nvm_get_scope = { key = flag:nvm_tutorial_mount } }
-	assert_if = { limit = { local_var:nvm_found = no } text = "NVM_TUT T8a mount exists: expected found" }
+	if = { limit = { local_var:nvm_found = no }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T8a FAIL mount exists: expected found"
+	}
+
+	change_local_variable = { name = nvm_tut_total add = 1 }
 	scope:nvm_scope = {
-		assert_if = { limit = { NOT = { this = scope:nvm_tutorial_t_horse } } text = "NVM_TUT T8b mount identity: expected horse 1" }
+		if = { limit = { NOT = { this = scope:nvm_tutorial_eng_horse_1 } }
+			change_local_variable = { name = nvm_tut_failures add = 1 }
+			error_log = "NVM_TUT T8b FAIL mount identity: expected eng horse 1"
+		}
 	}
 
 	# ═══════════════════════════════════════════════════════════════════════
-	# RACE RESULTS
+	# RACE RESULTS (England wins: 27 > 23)
 	# ═══════════════════════════════════════════════════════════════════════
 
-	c:ENG = {
-		var:nvm_tutorial_stable = { nvm_get_map = { key = flag:nvm_tutorial_horse_1 } }
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	scope:nvm_tutorial_eng_horse_1 = { nvm_get_value = { key = flag:nvm_tutorial_wins } }
+	if = { limit = { NOT = { local_var:nvm_result = 1 } }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T9 FAIL eng wins: expected 1 got [SCOPE.GetLocalVariable('nvm_result').GetValue|2]"
 	}
-	scope:nvm_cursor = { nvm_get_value = { key = flag:nvm_tutorial_wins } }
-	assert_if = { limit = { NOT = { local_var:nvm_result = 1 } } text = "NVM_TUT T9 eng wins: expected 1" }
 
-	scope:nvm_tutorial_t_horse = { nvm_get_value = { key = flag:nvm_tutorial_losses } }
-	assert_if = { limit = { NOT = { local_var:nvm_result = 1 } } text = "NVM_TUT T10 fra losses: expected 1" }
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	scope:nvm_tutorial_fra_horse_1 = { nvm_get_value = { key = flag:nvm_tutorial_losses } }
+	if = { limit = { NOT = { local_var:nvm_result = 1 } }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T10 FAIL fra losses: expected 1 got [SCOPE.GetLocalVariable('nvm_result').GetValue|2]"
+	}
 
-	scope:nvm_tutorial_t_horse = { nvm_get_list = { key = flag:nvm_tutorial_race_history } }
-	assert_if = { limit = { local_var:nvm_found = no } text = "NVM_TUT T11a race history exists: expected found" }
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	scope:nvm_tutorial_fra_horse_1 = { nvm_get_list = { key = flag:nvm_tutorial_race_history } }
+	if = { limit = { local_var:nvm_found = no }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T11a FAIL race history exists: expected found"
+	}
+
+	change_local_variable = { name = nvm_tut_total add = 1 }
 	scope:nvm_cursor = {
-		assert_if = { limit = { NOT = { var:nvm_list_size = 1 } } text = "NVM_TUT T11b race history size: expected 1" }
+		if = { limit = { NOT = { var:nvm_list_size = 1 } }
+			change_local_variable = { name = nvm_tut_failures add = 1 }
+			error_log = "NVM_TUT T11b FAIL race history size: expected 1 got [SCOPE.GetVariable('nvm_list_size').GetValue|0]"
+		}
 	}
 
-	c:ENG = {
-		var:nvm_tutorial_stable = { nvm_get_value = { key = flag:nvm_tutorial_total_wins } }
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	c:ENG = { var:nvm_tutorial_stable = { nvm_get_value = { key = flag:nvm_tutorial_total_wins } } }
+	if = { limit = { NOT = { local_var:nvm_result = 1 } }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T12 FAIL eng stable wins: expected 1 got [SCOPE.GetLocalVariable('nvm_result').GetValue|2]"
 	}
-	assert_if = { limit = { NOT = { local_var:nvm_result = 1 } } text = "NVM_TUT T12 eng stable wins: expected 1" }
 
 	# ═══════════════════════════════════════════════════════════════════════
-	# LINEAGE
+	# LINEAGE (horse 2 was transferred to England before deletion)
 	# ═══════════════════════════════════════════════════════════════════════
 
-	c:FRA = {
-		var:nvm_tutorial_stable = { nvm_get_map = { key = flag:nvm_tutorial_horse_2 } }
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	scope:nvm_tutorial_fra_horse_2 = { nvm_get_scope = { key = flag:nvm_tutorial_sire } }
+	if = { limit = { local_var:nvm_found = no }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T13a FAIL sire exists: expected found"
 	}
-	scope:nvm_cursor = { nvm_get_scope = { key = flag:nvm_tutorial_sire } }
-	assert_if = { limit = { local_var:nvm_found = no } text = "NVM_TUT T13a sire exists: expected found" }
+
+	change_local_variable = { name = nvm_tut_total add = 1 }
 	scope:nvm_scope = {
-		assert_if = { limit = { NOT = { this = scope:nvm_tutorial_t_horse } } text = "NVM_TUT T13b sire identity: expected horse 1" }
+		if = { limit = { NOT = { this = scope:nvm_tutorial_fra_horse_1 } }
+			change_local_variable = { name = nvm_tut_failures add = 1 }
+			error_log = "NVM_TUT T13b FAIL sire identity: expected fra horse 1"
+		}
 	}
 
 	# ═══════════════════════════════════════════════════════════════════════
 	# MAINTENANCE COSTS
 	# ═══════════════════════════════════════════════════════════════════════
 
-	scope:nvm_tutorial_t_horse = { nvm_get_map = { key = flag:nvm_tutorial_maintenance } }
-	assert_if = { limit = { local_var:nvm_found = no } text = "NVM_TUT T14a maintenance exists: expected found" }
-	scope:nvm_cursor = { nvm_get_value = { key = goods:wheat } }
-	assert_if = { limit = { NOT = { local_var:nvm_result = 2 } } text = "NVM_TUT T14b grain cost: expected 2" }
-	scope:nvm_cursor = { nvm_get_value = { key = goods:wine } }
-	assert_if = { limit = { NOT = { local_var:nvm_result = 1 } } text = "NVM_TUT T14c wine cost: expected 1" }
-
-	# ═══════════════════════════════════════════════════════════════════════
-	# JOCKEY XP
-	# ═══════════════════════════════════════════════════════════════════════
-
-	c:ENG = {
-		var:nvm_tutorial_stable = { nvm_get_map = { key = flag:nvm_tutorial_horse_1 } }
+	# Warhorse maintenance (shared template): wheat=3, iron=2
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	scope:nvm_tutorial_fra_horse_1 = { nvm_get_map = { key = flag:nvm_tutorial_maintenance } }
+	if = { limit = { local_var:nvm_found = no }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T14a FAIL maintenance exists: expected found"
 	}
-	scope:nvm_cursor = { nvm_get_scope = { key = flag:nvm_tutorial_jockey } }
-	scope:nvm_scope = { nvm_get_value = { key = flag:nvm_tutorial_experience } }
-	assert_if = { limit = { NOT = { local_var:nvm_result = 2 } } text = "NVM_TUT T15 jockey xp: expected 2" }
+
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	scope:nvm_cursor = { nvm_get_value = { key = goods:wheat } }
+	if = { limit = { NOT = { local_var:nvm_result = 3 } }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T14b FAIL warhorse wheat cost: expected 3 got [SCOPE.GetLocalVariable('nvm_result').GetValue|2]"
+	}
+
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	scope:nvm_cursor = { nvm_get_value = { key = goods:iron } }
+	if = { limit = { NOT = { local_var:nvm_result = 2 } }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T14c FAIL warhorse iron cost: expected 2 got [SCOPE.GetLocalVariable('nvm_result').GetValue|2]"
+	}
+
+	# Packhorse maintenance (shared template): wheat=1
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	scope:nvm_tutorial_fra_horse_2 = { nvm_get_map = { key = flag:nvm_tutorial_maintenance } }
+	if = { limit = { local_var:nvm_found = no }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T14d FAIL packhorse maintenance exists: expected found"
+	}
+
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	scope:nvm_cursor = { nvm_get_value = { key = goods:wheat } }
+	if = { limit = { NOT = { local_var:nvm_result = 1 } }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T14e FAIL packhorse wheat cost: expected 1 got [SCOPE.GetLocalVariable('nvm_result').GetValue|2]"
+	}
+
+	# Both warhorses share the same maintenance node
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	scope:nvm_tutorial_fra_horse_1 = { nvm_get_map = { key = flag:nvm_tutorial_maintenance } }
+	scope:nvm_cursor = { save_scope_as = nvm_tutorial_maint_a }
+	scope:nvm_tutorial_eng_horse_1 = { nvm_get_map = { key = flag:nvm_tutorial_maintenance } }
+	scope:nvm_cursor = {
+		if = { limit = { NOT = { this = scope:nvm_tutorial_maint_a } }
+			change_local_variable = { name = nvm_tut_failures add = 1 }
+			error_log = "NVM_TUT T14f FAIL shared maintenance: expected same node"
+		}
+	}
 
 	# ═══════════════════════════════════════════════════════════════════════
-	# POWER CALCULATION
+	# JOCKEY XP (England's jockey gained 2 XP from winning)
 	# ═══════════════════════════════════════════════════════════════════════
 
-	# France horse 1: speed 9 + stamina 6 + endurance 5 + jockey 4 = 24
-	scope:nvm_tutorial_t_horse = { nvm_tutorial_get_power = yes }
-	assert_if = { limit = { NOT = { local_var:nvm_tutorial_power = 24 } } text = "NVM_TUT T16 fra power after train: expected 24" }
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	scope:nvm_tutorial_eng_rider = { nvm_get_value = { key = flag:nvm_tutorial_experience } }
+	if = { limit = { NOT = { local_var:nvm_result = 2 } }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T15 FAIL jockey xp: expected 2 got [SCOPE.GetLocalVariable('nvm_result').GetValue|2]"
+	}
 
-	debug_log = "NVM_TUT === tests complete ==="
+	# ═══════════════════════════════════════════════════════════════════════
+	# VENUE SET
+	# ═══════════════════════════════════════════════════════════════════════
+
+	c:FRA = { capital = { save_scope_as = nvm_tutorial_race_loc } }
+
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	c:FRA = { var:nvm_tutorial_stable = { nvm_get_set = { key = flag:nvm_tutorial_venues } } }
+	if = { limit = { local_var:nvm_found = no }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T17a FAIL venues set exists: expected found"
+	}
+
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	scope:nvm_cursor = { nvm_set_has = { value = scope:nvm_tutorial_race_loc } }
+	if = { limit = { local_var:nvm_found = no }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T17b FAIL venue membership: expected found"
+	}
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# HORSE TRANSFER (horse 2 moved from France to England)
+	# ═══════════════════════════════════════════════════════════════════════
+
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	c:FRA = { var:nvm_tutorial_stable = { nvm_get_set = { key = flag:nvm_tutorial_horses } } }
+	scope:nvm_cursor = { nvm_set_has = { value = scope:nvm_tutorial_fra_horse_2 } }
+	if = { limit = { local_var:nvm_found = yes }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T18a FAIL fra horse 2 removed: expected not found"
+	}
+
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	c:ENG = { var:nvm_tutorial_stable = { nvm_get_set = { key = flag:nvm_tutorial_horses } } }
+	scope:nvm_cursor = { nvm_set_has = { value = scope:nvm_tutorial_fra_horse_2 } }
+	if = { limit = { local_var:nvm_found = no }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T18b FAIL eng horse 2 received: expected found"
+	}
+
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	scope:nvm_tutorial_fra_horse_2 = { nvm_get_value = { key = flag:nvm_tutorial_stamina } }
+	if = { limit = { NOT = { local_var:nvm_result = 9 } }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T18c FAIL transferred horse stamina: expected 9 got [SCOPE.GetLocalVariable('nvm_result').GetValue|2]"
+	}
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# JOCKEY RETIREMENT (France's jockey was retired)
+	# ═══════════════════════════════════════════════════════════════════════
+
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	scope:nvm_tutorial_fra_horse_1 = { nvm_has_scope = { key = flag:nvm_tutorial_jockey } }
+	if = { limit = { local_var:nvm_found = yes }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T19a FAIL jockey unlinked: expected not found"
+	}
+
+	# Power without jockey: speed 9 + stamina 6 + endurance 5 = 20
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	scope:nvm_tutorial_fra_horse_1 = { nvm_tutorial_get_power = yes }
+	if = { limit = { NOT = { local_var:nvm_tutorial_power = 20 } }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T19b FAIL power without jockey: expected 20 got [SCOPE.GetLocalVariable('nvm_tutorial_power').GetValue|0]"
+	}
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# STABLE POWER VIA SET ITERATION
+	# ═══════════════════════════════════════════════════════════════════════
+
+	# France: only horse 1 remains (no jockey), 9+6+5 = 20
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	c:FRA = { var:nvm_tutorial_stable = { nvm_tutorial_get_stable_power = yes } }
+	if = { limit = { NOT = { local_var:nvm_tutorial_stable_power = 20 } }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T20 FAIL fra stable power: expected 20 got [SCOPE.GetLocalVariable('nvm_tutorial_stable_power').GetValue|0]"
+	}
+
+	# England: horse 1 (7+7+7+jockey 6=27) + horse 2 (5+9+7=21) = 48
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	c:ENG = { var:nvm_tutorial_stable = { nvm_tutorial_get_stable_power = yes } }
+	if = { limit = { NOT = { local_var:nvm_tutorial_stable_power = 48 } }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T21 FAIL eng stable power: expected 48 got [SCOPE.GetLocalVariable('nvm_tutorial_stable_power').GetValue|0]"
+	}
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# TYPE REGISTRY (global query across all instances)
+	# ═══════════════════════════════════════════════════════════════════════
+
+	# 3 horses total: fra horse 1, eng horse 1, fra horse 2 (transferred)
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	set_local_variable = { name = nvm_tutorial_type_count value = 0 }
+	nvm_for_each_of_type = { type = flag:nvm_tutorial_horse callback = nvm_tutorial_count_type_callback }
+	if = { limit = { NOT = { local_var:nvm_tutorial_type_count = 3 } }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T22 FAIL horse count via registry: expected 3 got [SCOPE.GetLocalVariable('nvm_tutorial_type_count').GetValue|0]"
+	}
+
+	# 1 jockey: only England's (France's was retired)
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	set_local_variable = { name = nvm_tutorial_type_count value = 0 }
+	nvm_for_each_of_type = { type = flag:nvm_tutorial_jockey callback = nvm_tutorial_count_type_callback }
+	if = { limit = { NOT = { local_var:nvm_tutorial_type_count = 1 } }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T23 FAIL jockey count via registry: expected 1 got [SCOPE.GetLocalVariable('nvm_tutorial_type_count').GetValue|0]"
+	}
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# HORSE DELETION (proper cleanup before delete)
+	# ═══════════════════════════════════════════════════════════════════════
+
+	# Horse 2 was removed from England's set and deleted
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	c:ENG = { var:nvm_tutorial_stable = { nvm_get_set = { key = flag:nvm_tutorial_horses } } }
+	scope:nvm_cursor = { nvm_set_has = { value = scope:nvm_tutorial_fra_horse_2 } }
+	if = { limit = { local_var:nvm_found = yes }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T24a FAIL deleted horse removed from set: expected not found"
+	}
+
+	# Deleted node is no longer in the active pool
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	scope:nvm_tutorial_fra_horse_2 = { nvm_is_valid = yes }
+	if = { limit = { local_var:nvm_found = yes }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T24b FAIL deleted horse not in pool: expected not found"
+	}
+
+	# Type registry no longer includes the deleted horse (2 remain)
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	set_local_variable = { name = nvm_tutorial_type_count value = 0 }
+	nvm_for_each_of_type = { type = flag:nvm_tutorial_horse callback = nvm_tutorial_count_type_callback }
+	if = { limit = { NOT = { local_var:nvm_tutorial_type_count = 2 } }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T24c FAIL horse count after deletion: expected 2 got [SCOPE.GetLocalVariable('nvm_tutorial_type_count').GetValue|0]"
+	}
+
+	# England stable power: only horse 1 remains (7+7+7+jockey 6=27)
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	c:ENG = { var:nvm_tutorial_stable = { nvm_tutorial_get_stable_power = yes } }
+	if = { limit = { NOT = { local_var:nvm_tutorial_stable_power = 27 } }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T24d FAIL eng stable power after deletion: expected 27 got [SCOPE.GetLocalVariable('nvm_tutorial_stable_power').GetValue|0]"
+	}
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# WEIGHTED SET OPERATIONS
+	# ═══════════════════════════════════════════════════════════════════════
+
+	# Horse 1 was re-added to France's set with weight 5
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	c:FRA = { var:nvm_tutorial_stable = { nvm_get_set = { key = flag:nvm_tutorial_horses } } }
+	scope:nvm_cursor = { nvm_set_has = { value = scope:nvm_tutorial_fra_horse_1 } }
+	if = { limit = { local_var:nvm_found = no }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T25a FAIL weighted add membership: expected found"
+	}
+
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	scope:nvm_cursor = { nvm_set_get_weight = { value = scope:nvm_tutorial_fra_horse_1 } }
+	if = { limit = { NOT = { local_var:nvm_result = 5 } }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T25b FAIL weight value: expected 5 got [SCOPE.GetLocalVariable('nvm_result').GetValue|2]"
+	}
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# NVM_SET_MAP REPLACEMENT (overwrite existing keyed child)
+	# ═══════════════════════════════════════════════════════════════════════
+
+	# Horse 1 originally had warhorse maintenance, replace with packhorse
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	scope:nvm_tutorial_fra_horse_1 = { nvm_set_map = { key = flag:nvm_tutorial_maintenance child = scope:nvm_tutorial_packhorse_maint } }
+	scope:nvm_tutorial_fra_horse_1 = { nvm_get_map = { key = flag:nvm_tutorial_maintenance } }
+	if = { limit = { local_var:nvm_found = no }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T26a FAIL replacement maintenance exists: expected found"
+	}
+
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	scope:nvm_cursor = { nvm_get_value = { key = goods:wheat } }
+	if = { limit = { NOT = { local_var:nvm_result = 1 } }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T26b FAIL replaced maintenance wheat: expected 1 (packhorse) got [SCOPE.GetLocalVariable('nvm_result').GetValue|2]"
+	}
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# LIST POP (nvm_list_pop)
+	# ═══════════════════════════════════════════════════════════════════════
+
+	# France's horse 1 has a race history list with 1 entry (the race location)
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	scope:nvm_tutorial_fra_horse_1 = { nvm_get_list = { key = flag:nvm_tutorial_race_history } }
+	scope:nvm_cursor = { save_scope_as = nvm_tutorial_t_history }
+	scope:nvm_tutorial_t_history = { nvm_list_pop = yes }
+	if = { limit = { local_var:nvm_found = no }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T27a FAIL list pop returned item: expected found"
+	}
+
+	# List should now be empty
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	scope:nvm_tutorial_t_history = {
+		if = { limit = { NOT = { var:nvm_list_size = 0 } }
+			change_local_variable = { name = nvm_tut_failures add = 1 }
+			error_log = "NVM_TUT T27b FAIL list size after pop: expected 0 got [SCOPE.GetVariable('nvm_list_size').GetValue|0]"
+		}
+	}
+
+	# Pop on empty list returns not found
+	change_local_variable = { name = nvm_tut_total add = 1 }
+	scope:nvm_tutorial_t_history = { nvm_list_pop = yes }
+	if = { limit = { local_var:nvm_found = yes }
+		change_local_variable = { name = nvm_tut_failures add = 1 }
+		error_log = "NVM_TUT T27c FAIL pop empty list: expected not found"
+	}
+
+	# ═══════════════════════════════════════════════════════════════════════
+	# SUMMARY
+	# ═══════════════════════════════════════════════════════════════════════
+
+	set_local_variable = { name = nvm_tut_passed value = local_var:nvm_tut_total }
+	change_local_variable = { name = nvm_tut_passed subtract = local_var:nvm_tut_failures }
+	error_log = "NVM_TUT SUMMARY: [SCOPE.GetLocalVariable('nvm_tut_passed').GetValue|0]/[SCOPE.GetLocalVariable('nvm_tut_total').GetValue|0] passed, [SCOPE.GetLocalVariable('nvm_tut_failures').GetValue|0] failures"
+
 }

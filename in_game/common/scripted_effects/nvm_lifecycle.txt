@@ -22,7 +22,7 @@ nvm_clean_parent_refs = {
 	if = { limit = { has_variable_list = nvm_parents }
 		every_in_list = {
 			variable = nvm_parents
-			save_scope_as = nvm_del_parent
+			save_temporary_scope_as = nvm_del_parent
 
 			# Collect keys in nvm_children that point to the node being deleted
 			clear_global_variable_list = nvm_keys_to_remove
@@ -30,14 +30,13 @@ nvm_clean_parent_refs = {
 				if = { limit = { has_variable_map = nvm_children }
 					every_key_in_variable_map = {
 						variable = nvm_children
-						save_scope_as = nvm_del_iter_key
+						save_temporary_scope_as = nvm_del_iter_key
 						scope:nvm_del_parent = {
-							set_local_variable = { name = nvm_nav value = "variable_map(nvm_children|scope:nvm_del_iter_key)" }
-						}
-						local_var:nvm_nav = {
-							if = {
-								limit = { this = scope:nvm_deleting }
-								add_to_global_variable_list = { name = nvm_keys_to_remove target = scope:nvm_del_iter_key }
+							"variable_map(nvm_children|scope:nvm_del_iter_key)" = {
+								if = {
+									limit = { this = scope:nvm_deleting }
+									add_to_global_variable_list = { name = nvm_keys_to_remove target = scope:nvm_del_iter_key }
+								}
 							}
 						}
 					}
@@ -45,7 +44,7 @@ nvm_clean_parent_refs = {
 			}
 			every_in_global_list = {
 				variable = nvm_keys_to_remove
-				save_scope_as = nvm_del_remove_key
+				save_temporary_scope_as = nvm_del_remove_key
 				scope:nvm_del_parent = {
 					remove_from_variable_map = { name = nvm_children key = scope:nvm_del_remove_key }
 				}
@@ -57,14 +56,13 @@ nvm_clean_parent_refs = {
 				if = { limit = { has_variable_map = nvm_lists }
 					every_key_in_variable_map = {
 						variable = nvm_lists
-						save_scope_as = nvm_del_iter_key
+						save_temporary_scope_as = nvm_del_iter_key
 						scope:nvm_del_parent = {
-							set_local_variable = { name = nvm_nav value = "variable_map(nvm_lists|scope:nvm_del_iter_key)" }
-						}
-						local_var:nvm_nav = {
-							if = {
-								limit = { this = scope:nvm_deleting }
-								add_to_global_variable_list = { name = nvm_keys_to_remove target = scope:nvm_del_iter_key }
+							"variable_map(nvm_lists|scope:nvm_del_iter_key)" = {
+								if = {
+									limit = { this = scope:nvm_deleting }
+									add_to_global_variable_list = { name = nvm_keys_to_remove target = scope:nvm_del_iter_key }
+								}
 							}
 						}
 					}
@@ -72,7 +70,7 @@ nvm_clean_parent_refs = {
 			}
 			every_in_global_list = {
 				variable = nvm_keys_to_remove
-				save_scope_as = nvm_del_remove_key
+				save_temporary_scope_as = nvm_del_remove_key
 				scope:nvm_del_parent = {
 					remove_from_variable_map = { name = nvm_lists key = scope:nvm_del_remove_key }
 				}
@@ -88,6 +86,17 @@ nvm_clean_parent_refs = {
 # Called after parent references have been cleaned up.
 
 nvm_wipe_and_release = {
+	if = { limit = { has_variable = nvm_type }
+		save_temporary_scope_as = nvm_releasing_node
+		var:nvm_type = { save_temporary_scope_as = nvm_release_type }
+		global_var:nvm_type_registry = {
+			nvm_get_set = { key = scope:nvm_release_type }
+		}
+		if = {
+			limit = { local_var:nvm_found = yes }
+			scope:nvm_cursor = { nvm_set_remove = { value = scope:nvm_releasing_node } }
+		}
+	}
 	if = { limit = { has_variable_map = nvm_children } clear_variable_map = nvm_children }
 	if = { limit = { has_variable_map = nvm_values } clear_variable_map = nvm_values }
 	if = { limit = { has_variable_map = nvm_scopes } clear_variable_map = nvm_scopes }
@@ -112,7 +121,7 @@ nvm_wipe_and_release = {
 # Scope: the dictionary to delete
 
 nvm_delete_map = {
-	save_scope_as = nvm_deleting
+	save_temporary_scope_as = nvm_deleting
 	nvm_clean_parent_refs = yes
 	nvm_wipe_and_release = yes
 }
@@ -129,7 +138,7 @@ nvm_delete_map = {
 # Scope: the root dictionary to delete
 
 nvm_delete_tree = {
-	save_scope_as = nvm_deleting
+	save_temporary_scope_as = nvm_deleting
 	nvm_clean_parent_refs = yes
 
 	if = {
@@ -143,7 +152,7 @@ nvm_delete_tree = {
 		if = { limit = { has_variable_map = nvm_children }
 			every_key_in_variable_map = {
 				variable = nvm_children
-				save_scope_as = nvm_del_child_key
+				save_temporary_scope_as = nvm_del_child_key
 				scope:nvm_deleting = {
 					set_local_variable = { name = nvm_nav value = "variable_map(nvm_children|scope:nvm_del_child_key)" }
 				}
@@ -154,7 +163,7 @@ nvm_delete_tree = {
 		if = { limit = { has_variable_map = nvm_lists }
 			every_key_in_variable_map = {
 				variable = nvm_lists
-				save_scope_as = nvm_del_child_key
+				save_temporary_scope_as = nvm_del_child_key
 				scope:nvm_deleting = {
 					set_local_variable = { name = nvm_nav value = "variable_map(nvm_lists|scope:nvm_del_child_key)" }
 				}

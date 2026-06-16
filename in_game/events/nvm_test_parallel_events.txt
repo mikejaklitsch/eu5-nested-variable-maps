@@ -13,7 +13,6 @@ nvm_parallel_test.1 = {
 	title = "nvm_parallel_test.1"
 
 	immediate = {
-		debug_log = "NVM_PAR event.1 fired"
 		set_local_variable = { name = fail_shared value = 0 }
 		set_local_variable = { name = fail_child value = 0 }
 

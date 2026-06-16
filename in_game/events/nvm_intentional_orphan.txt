@@ -35,6 +35,8 @@ nvm_intentional_orphan.1 = {
 		set_variable = { name = nvm_orphan_ref value = flag:nvm_tutorial_total_losses }
 		set_variable = { name = nvm_orphan_ref value = flag:nvm_tutorial_stable }
 		set_variable = { name = nvm_orphan_ref value = flag:nvm_tutorial_horse }
+		set_variable = { name = nvm_orphan_ref value = flag:nvm_tutorial_horses }
+		set_variable = { name = nvm_orphan_ref value = flag:nvm_tutorial_venues }
 		change_variable = { name = nvm_orphan_ref multiply = 1 }
 
 		# ── variables used in localization expressions (error_log inline reads) ──
@@ -44,6 +46,8 @@ nvm_intentional_orphan.1 = {
 		change_local_variable = { name = test_val multiply = 1 }
 		set_local_variable = { name = pool_before value = 0 }
 		change_local_variable = { name = pool_before multiply = 1 }
+		set_local_variable = { name = nvm_tutorial_pool_before value = 0 }
+		change_local_variable = { name = nvm_tutorial_pool_before multiply = 1 }
 	}
 
 	option = { name = "OK" }

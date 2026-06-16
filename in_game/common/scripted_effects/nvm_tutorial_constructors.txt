@@ -1,31 +1,17 @@
 ﻿# ═══════════════════════════════════════════════════════════════════════════════
 # HORSE RACING TUTORIAL: CONSTRUCTORS
 # ═══════════════════════════════════════════════════════════════════════════════
-# Each "class" is a scripted effect that allocates a node, stamps it with a
-# type, and initializes its fields. The constructor IS the class definition:
-# whatever fields it writes are the class's schema.
+# Each "class" is a scripted effect that stamps a type and initializes fields.
+# For abstract concepts (Horse, Stable), allocate a pool node first.
+# For game entities (Jockey on a character), stamp directly.
 #
-# All constructors return their new object via scope:nvm_map.
+# All constructors return their new object via scope:nvm_map (if allocated).
 
 # ───────────────────────────────────────────────────────────────────────────────
-# nvm_tutorial_new_horse
+# Horse
 # ───────────────────────────────────────────────────────────────────────────────
-# Creates a Horse object with initial stats.
-#
-# Parameters:
-#   $speed$    - base speed (numeric)
-#   $stamina$  - base stamina (numeric)
-#   $endurance$ - base endurance (numeric)
-#
+# Parameters: $speed$, $stamina$, $endurance$
 # Result: scope:nvm_map = the new Horse node
-#
-# Schema:
-#   type = flag:nvm_tutorial_horse
-#   values: flag:nvm_tutorial_speed, flag:nvm_tutorial_stamina, flag:nvm_tutorial_endurance,
-#           flag:nvm_tutorial_wins (0), flag:nvm_tutorial_losses (0)
-#   scopes: flag:nvm_tutorial_sire, flag:nvm_tutorial_dam (unset until breeding assigned)
-#   children: flag:nvm_tutorial_maintenance (sub-dict of goods costs)
-#   lists: flag:nvm_tutorial_race_history (locations raced at)
 
 nvm_tutorial_new_horse = {
 	nvm_new_map = yes
@@ -38,47 +24,25 @@ nvm_tutorial_new_horse = {
 		nvm_set_value = { key = flag:nvm_tutorial_losses value = 0 }
 	}
 
-	scope:nvm_map = { nvm_get_or_set_map = { key = flag:nvm_tutorial_maintenance } }
-	scope:nvm_cursor = { nvm_set_value = { key = goods:wheat value = 2 } }
-
 	scope:nvm_map = { nvm_get_or_set_list = { key = flag:nvm_tutorial_race_history } }
 }
 
 # ───────────────────────────────────────────────────────────────────────────────
-# nvm_tutorial_new_jockey
+# Jockey (stamped directly on a character)
 # ───────────────────────────────────────────────────────────────────────────────
-# Creates a Jockey object.
-#
-# Parameters:
-#   $skill$ - base riding skill (numeric)
-#
-# Result: scope:nvm_map = the new Jockey node
-#
-# Schema:
-#   type = flag:nvm_tutorial_jockey
-#   values: flag:nvm_tutorial_skill, flag:nvm_tutorial_experience (0)
-#   scopes: flag:nvm_tutorial_mount (unset until assigned)
+# Parameters: $skill$
+# Scope: the character to stamp
 
-nvm_tutorial_new_jockey = {
-	nvm_new_map = yes
-	scope:nvm_map = {
-		nvm_set_type = { type = flag:nvm_tutorial_jockey }
-		nvm_set_value = { key = flag:nvm_tutorial_skill value = $skill$ }
-		nvm_set_value = { key = flag:nvm_tutorial_experience value = 0 }
-	}
+nvm_tutorial_init_jockey = {
+	nvm_set_type = { type = flag:nvm_tutorial_jockey }
+	nvm_set_value = { key = flag:nvm_tutorial_skill value = $skill$ }
+	nvm_set_value = { key = flag:nvm_tutorial_experience value = 0 }
 }
 
 # ───────────────────────────────────────────────────────────────────────────────
-# nvm_tutorial_new_stable
+# Stable
 # ───────────────────────────────────────────────────────────────────────────────
-# Creates a Stable object for a country.
-#
 # Result: scope:nvm_map = the new Stable node
-#
-# Schema:
-#   type = flag:nvm_tutorial_stable
-#   values: flag:nvm_tutorial_total_wins (0), flag:nvm_tutorial_total_losses (0)
-#   children: horses keyed by flag:nvm_tutorial_horse_1, flag:nvm_tutorial_horse_2, etc.
 
 nvm_tutorial_new_stable = {
 	nvm_new_map = yes
@@ -87,4 +51,6 @@ nvm_tutorial_new_stable = {
 		nvm_set_value = { key = flag:nvm_tutorial_total_wins value = 0 }
 		nvm_set_value = { key = flag:nvm_tutorial_total_losses value = 0 }
 	}
+	scope:nvm_map = { nvm_get_or_set_set = { key = flag:nvm_tutorial_horses } }
+	scope:nvm_map = { nvm_get_or_set_set = { key = flag:nvm_tutorial_venues } }
 }
